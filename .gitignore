@@ -1,0 +1,7 @@
+.cache/
+bcplc
+*.o
+*.out
+*.a
+vgcore.*
+compile_commands.json
