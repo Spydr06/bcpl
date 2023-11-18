@@ -1,6 +1,7 @@
 #ifndef BCPLC_TOKEN_H
 #define BCPLC_TOKEN_H
 
+#include "util.h"
 #include <stdint.h>
 #include <stdio.h>
 
@@ -50,11 +51,14 @@ enum token_kind {
     RETURN,
     FINISH,
     SWITCHON,
+    MATCH,
+    EVERY,
     CASE,
     DEFAULT,
     LET,
     MANIFEST,
     GLOBAL,
+    STATIC,
     BE,
     SECTBRA,
     SECTKET,
@@ -69,6 +73,9 @@ enum token_kind {
     OR,
     VEC,
     STAR,
+    SLCT,
+    BITSPERBCPLWORD,
+    QUESTIONMARK,
     LEX_EOF = 0,
     LEX_ERROR = -1
 };
@@ -81,7 +88,7 @@ struct token {
     } val;
 };
 
-struct token next_token(FILE* file, unsigned* line, struct token* prev);
+struct token next_token(FILE* file, unsigned* line, struct token* prev, struct string_list** tags);
 
 void lex_error(const char* filename, FILE* fd, unsigned line, const char* error);
 

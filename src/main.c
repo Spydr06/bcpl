@@ -9,6 +9,7 @@
 
 #include "context.h"
 #include "token.h"
+#include "util.h"
 
 #define DEFAULT_OUTPUT_FILE "a.out"
 
@@ -22,6 +23,7 @@ static void help(const char* progname)
     printf("Usage: %s <input file> [OPTIONS]\n\n", progname);
     puts("Options:");
     printf("  -o <output file>  Set an output file; default: `%s`\n", DEFAULT_OUTPUT_FILE);
+    printf("  -D <tag name>     Set a BCPL tag\n");
     printf("  -h, --help        Print this help text and exit.\n");
     exit(EXIT_SUCCESS); 
 }
@@ -49,9 +51,10 @@ int main(int argc, char** argv) {
     struct context ctx;
     ctx.output_file = DEFAULT_OUTPUT_FILE;
     ctx.progname = argv[0];
+    ctx.tags = string_list_init();
 
     int ch;
-    while((ch = getopt_long(argc, argv, "ho:", cmdline_options, NULL)) != EOF)
+    while((ch = getopt_long(argc, argv, "ho:D:", cmdline_options, NULL)) != EOF)
     {
         switch(ch) {
         case 'h':
@@ -59,6 +62,9 @@ int main(int argc, char** argv) {
             break;
         case 'o':
             ctx.output_file = optarg;
+            break;
+        case 'D':
+            string_list_add(&ctx.tags, optarg);
             break;
         case '?':
             fprintf(stderr, "Try `%s --help` for more information.\n", argv[0]);
@@ -89,7 +95,7 @@ int main(int argc, char** argv) {
             struct token cur_tok;
             unsigned line = 1;
             do {
-                cur_tok = next_token(fd, &line, &cur_tok);
+                cur_tok = next_token(fd, &line, &cur_tok, &ctx.tags);
                 if(cur_tok.kind == LEX_ERROR)
                     lex_error(input_file, fd, line, cur_tok.val.string ? cur_tok.val.string : "");
                 dbg_print_token(&cur_tok);
@@ -100,6 +106,8 @@ int main(int argc, char** argv) {
         else
             fatal_error(argv[0], "`%s`: unrecognized file extension `%s`", input_file, fileext);
     }
+
+    printf("%u\n", ctx.tags->size);
  
     return 0;
 }
