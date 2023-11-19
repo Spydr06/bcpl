@@ -1,5 +1,6 @@
 .cache/
-bcplc
+build/
+bcpl++
 *.o
 *.out
 *.a

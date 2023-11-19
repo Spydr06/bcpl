@@ -11,8 +11,10 @@
 #include <ctype.h>
 #include <limits.h>
 
-#define KW_TOK(_kind) (struct token){.kind = (_kind)}
-#define ERR_TOK(err) (struct token){.kind = LEX_ERROR, .val.string = (err)}
+#define KW_TOK(_kind) (struct token){.kind = (TOKEN_##_kind)}
+#define ERR_TOK(_err) (struct token){.kind = LEX_ERROR, .val.string = (_err)}
+#define EOF_TOK (struct token){.kind = LEX_EOF}
+#define STR_TOK(_kind, _strval) (struct token){.kind = (TOKEN_##_kind), .val.string = (_strval)}
 
 enum format_kind {
     DECIMAL = 10,
@@ -118,7 +120,13 @@ struct token read_str_constant(FILE* file, char quote) {
     const char* err = resolve_escape_codes(strval);
     if(err)
         return ERR_TOK(err);
-    return (struct token){.kind = STRINGCONST, .val.string = strval};
+
+    if(quote == '\'') {
+        if(strlen(strval) > 1)
+            return ERR_TOK("char literal has more than one characters");
+        return STR_TOK(CHAR, strval);
+    }
+    return STR_TOK(STRING, strval);
 }
 
 // TODO: fp support
@@ -140,64 +148,45 @@ struct token read_num_constant(FILE* file, enum format_kind format) {
     if(val == ULLONG_MAX && errno)
         return ERR_TOK("invalid numeric constant");
 
-    return (struct token){.kind = NUMBER, .val.integer = val};
+    return (struct token){.kind = TOKEN_INTEGER, .val.integer = val};
 }
 
 static const struct {
     const char* system_word;
     enum token_kind kind;
 } system_words[] = {
-    {"true", TRUE}, {"TRUE", TRUE},
-    {"false", FALSE}, {"FALSE", FALSE},
-    {"valof", VALOF}, {"VALOF", VALOF},
-    {"lv", LV}, {"LV", LV},
-    {"rv", RV}, {"RV", RV},
-    {"rem", REM}, {"REM", REM},
-    {"div", DIV}, {"DIV", DIV},
-    {"eq", EQ}, {"EQ", EQ},
-    {"ne", NE}, {"NE", NE},
-    {"ls", LS}, {"LS", LS},
-    {"gr", GR}, {"GR", GR},
-    {"le", LE}, {"LE", LE},
-    {"ge", GE}, {"GE", GE},
-    {"not", NOT}, {"NOT", NOT},
-    {"lshift", LSHIFT}, {"LSHIFT", LSHIFT},
-    {"rshift", RSHIFT}, {"RSHIFT", RSHIFT},
-    {"and", AND}, {"AND", AND},
-    {"logand", LOGAND}, {"LOGAND", LOGAND},
-    {"logor", LOGOR}, {"LOGOR", LOGOR},
-    {"eqv", EQV}, {"EQV", EQV},
-    {"neqv", NEQV}, {"NEQV", NEQV},
-    {"ass", ASS}, {"ASS", ASS},
-    {"goto", GOTO}, {"GOTO", GOTO},
-    {"resultis", RESULTIS}, {"RESULTIS", RESULTIS},
-    {"test", TEST}, {"TEST", TEST},
-    {"for", FOR}, {"FOR", FOR},
-    {"if", IF}, {"IF", IF},
-    {"unless", UNLESS}, {"UNLESS", UNLESS},
-    {"while", WHILE}, {"WHILE", WHILE},
-    {"until", UNTIL}, {"UNTIL", UNTIL},
-    {"repeat", REPEAT}, {"REPEAT", REPEAT},
-    {"repeatwhile", REPEATWHILE}, {"REPEATWHILE", REPEATWHILE},
-    {"repeatuntil", REPEATUNTIL}, {"REPEATUNTIL", REPEATUNTIL},
-    {"break", BREAK}, {"BREAK", BREAK},
-    {"return", RETURN}, {"RETURN", RETURN},
-    {"finish", FINISH}, {"FINISH", FINISH},
-    {"switchon", SWITCHON}, {"SWITCHON", SWITCHON},
-    {"match", MATCH}, {"MATCH", MATCH},
-    {"every", EVERY}, {"EVERY", EVERY},
-    {"case", CASE}, {"CASE", CASE},
-    {"default", DEFAULT}, {"DEFAULT", DEFAULT},
-    {"let", LET}, {"LET", LET},
-    {"manifest", MANIFEST}, {"MANIFEST", MANIFEST},
-    {"global", GLOBAL}, {"GLOBAL", GLOBAL},
-    {"be", BE}, {"BE", BE},
-    {"into", INTO}, {"INTO", INTO},
-    {"to", TO}, {"TO", TO},
-    {"do", DO}, {"DO", DO},
-    {"vec", VEC}, {"VEC", VEC},
-    {"bitsperbcplword", BITSPERBCPLWORD}, {"BITSPERBCPLWORD", BITSPERBCPLWORD},
-    {"slct", SLCT}, {"SLCT", SLCT},
+    {"true", TOKEN_TRUE},
+    {"false", TOKEN_FALSE},
+    {"let", TOKEN_LET},
+    {"and", TOKEN_AND},
+    {"valof", TOKEN_VALOF},
+    {"resultis", TOKEN_RESULTIS},
+    {"return", TOKEN_RETURN},
+    {"finish", TOKEN_FINISH},
+    {"skip", TOKEN_SKIP},
+    {"repeat", TOKEN_REPEAT},
+    {"break", TOKEN_BREAK},
+    {"if", TOKEN_IF},
+    {"unless", TOKEN_UNLESS},
+    {"until", TOKEN_UNTIL},
+    {"switchon", TOKEN_SWITCHON},
+    {"match", TOKEN_MATCH},
+    {"every", TOKEN_EVERY},
+    {"case", TOKEN_CASE},
+    {"default", TOKEN_DEFAULT},
+    {"do", TOKEN_DO},
+    {"to", TOKEN_TO},
+    {"by", TOKEN_BY},
+    {"of", TOKEN_OF},
+    {"be", TOKEN_BE},
+    {"section", TOKEN_SECTION},
+    {"get", TOKEN_GET},
+    {"global", TOKEN_GLOBAL},
+    {"manifest", TOKEN_MANIFEST},
+    {"static", TOKEN_STATIC},
+    {"mod", TOKEN_MOD},
+    {"abs", TOKEN_ABS},
+    {"for", TOKEN_FOR},
     {NULL, LEX_ERROR}
 };
 
@@ -207,7 +196,7 @@ static enum token_kind get_system_word(const char* word) {
             return system_words[i].kind;
     }
 
-    return NAME;
+    return TOKEN_IDENT;
 }
 
 static inline bool is_word_char(char c) {
@@ -224,28 +213,30 @@ struct token read_alpha_seq(FILE* file) {
     fread(word, sizeof(char), end - start - 1, file);
 
     enum token_kind kind = get_system_word(word); 
-    if(kind == NAME)
-        return (struct token){.kind = NAME, .val.string = word};
+    if(kind == TOKEN_IDENT)
+        return (struct token){.kind = TOKEN_IDENT, .val.string = word};
     else {
         free(word);
-        return KW_TOK(kind);
+        return (struct token){.kind = kind};
     }
 }
 
 bool ends_command(enum token_kind kind) {
     switch(kind) {
-    case BREAK:
-    case RETURN:
-    case FINISH:
-    case REPEAT:
-    case SKET:
-    case RKET:
-    case SECTKET:
-    case NAME:
-    case STRINGCONST:
-    case NUMBER:
-    case TRUE:
-    case FALSE:
+    case TOKEN_BREAK:
+    case TOKEN_RETURN:
+    case TOKEN_FINISH:
+    case TOKEN_REPEAT:
+    case TOKEN_RPAREN:
+    case TOKEN_RBRACE:
+    case TOKEN_RBRACKET:
+    case TOKEN_IDENT:
+    case TOKEN_INTEGER:
+    case TOKEN_STRING:
+    case TOKEN_TRUE:
+    case TOKEN_FALSE:
+    case TOKEN_FLOAT:
+    case TOKEN_CHAR:
         return true;
     default:
         return false;
@@ -254,25 +245,21 @@ bool ends_command(enum token_kind kind) {
 
 bool may_start_command(enum token_kind kind) {
     switch(kind) {
-    case TEST:
-    case FOR:
-    case IF:
-    case UNLESS:
-    case UNTIL:
-    case WHILE:
-    case GOTO:
-    case RESULTIS:
-    case CASE:
-    case DEFAULT:
-    case BREAK:
-    case RETURN:
-    case FINISH:
-    case SECTBRA:
-    case RBRA:
-    case VALOF:
-    case LV:
-    case RV:
-    case NAME:
+    case TOKEN_FOR:
+    case TOKEN_IF:
+    case TOKEN_UNLESS:
+    case TOKEN_UNTIL:
+    case TOKEN_WHILE:
+    case TOKEN_RESULTIS:
+    case TOKEN_CASE:
+    case TOKEN_DEFAULT:
+    case TOKEN_BREAK:
+    case TOKEN_RETURN:
+    case TOKEN_FINISH:
+    case TOKEN_LBRACE:
+    case TOKEN_LPAREN:
+    case TOKEN_VALOF:
+    case TOKEN_IDENT:
         return true;
     default:
         return false;
@@ -281,14 +268,15 @@ bool may_start_command(enum token_kind kind) {
 
 bool ends_expression(enum token_kind kind) {
     switch(kind) {
-    case SKET:
-    case RKET:
-    case SECTKET:
-    case NAME:
-    case NUMBER:
-    case STRINGCONST:
-    case TRUE:
-    case FALSE:
+    case TOKEN_RPAREN:
+    case TOKEN_RBRACE:
+    case TOKEN_RBRACKET:
+    case TOKEN_IDENT:
+    case TOKEN_INTEGER:
+    case TOKEN_FLOAT:
+    case TOKEN_STRING:
+    case TOKEN_TRUE:
+    case TOKEN_FALSE:
         return true;
     default:
         return false;
@@ -297,19 +285,17 @@ bool ends_expression(enum token_kind kind) {
 
 bool must_start_command(enum token_kind kind) {
     switch(kind) {
-    case TEST:
-    case FOR:
-    case IF:
-    case UNLESS:
-    case UNTIL:
-    case WHILE:
-    case GOTO:
-    case RESULTIS:
-    case CASE:
-    case DEFAULT:
-    case BREAK:
-    case RETURN:
-    case FINISH:
+    case TOKEN_FOR:
+    case TOKEN_IF:
+    case TOKEN_UNLESS:
+    case TOKEN_UNTIL:
+    case TOKEN_WHILE:
+    case TOKEN_RESULTIS:
+    case TOKEN_CASE:
+    case TOKEN_DEFAULT:
+    case TOKEN_BREAK:
+    case TOKEN_RETURN:
+    case TOKEN_FINISH:
         return true;
     default:
         return false;
@@ -357,35 +343,29 @@ repeat:
 
     switch(c) {
     case EOF:
-        tok = KW_TOK(LEX_EOF);
+        tok = EOF_TOK;
         break;
     case '(':
-        tok = KW_TOK(RBRA);
+        tok = KW_TOK(LPAREN);
         break;
     case ')':
-        tok = KW_TOK(RKET);
+        tok = KW_TOK(RPAREN);
         break;
     case '[':
-        tok = KW_TOK(SBRA);
+        tok = KW_TOK(LBRACKET);
         break;
     case ']':
-        tok = KW_TOK(SKET);
+        tok = KW_TOK(RBRACKET);
         break;
     case '{':
-        tok = KW_TOK(SECTBRA);
+        tok = KW_TOK(LBRACE);
         break;
     case '}':
-        tok = KW_TOK(SECTKET);
+        tok = KW_TOK(RBRACE);
         break;
     case '$':
-        switch(c = fgetc(file)) {
-        case '(':
-            tok = KW_TOK(SECTBRA);
-            break;
-        case ')':
-            tok = KW_TOK(SECTKET);
-            break;
         // compile-time conditionals:
+        switch(c = fgetc(file)) {
 #define GET_TAG(sym) if(!is_word_char(fgetc(file)))                           \
                         return ERR_TOK("expect idetntifier after `" sym "`"); \
                     tok = read_alpha_seq(file)
@@ -476,7 +456,7 @@ repeat:
         }
         else {
             ungetc(c, file);
-            tok = KW_TOK(DIV);
+            tok = KW_TOK(SLASH);
         }
         break;
     case '=':
@@ -492,8 +472,11 @@ repeat:
         break;
     case ':':
         if((c = fgetc(file)) == '=')
-            tok = KW_TOK(ASS);
+            tok = KW_TOK(ASSIGN);
+        else if(c == ':')
+            tok = KW_TOK(OF);
         else {
+            ungetc(c, file);
             tok = KW_TOK(COLON);
         }
         break;
@@ -508,7 +491,7 @@ repeat:
             tok = KW_TOK(LE);
         else {
             ungetc(c, file);
-            tok = KW_TOK(LS);
+            tok = KW_TOK(LT);
         }
         break;
     case '>':
@@ -516,14 +499,14 @@ repeat:
             tok = KW_TOK(GE);
         else {
             ungetc(c, file);
-            tok = KW_TOK(GR);
+            tok = KW_TOK(GT);
         }
         break;
     case '~':
         tok = KW_TOK(NOT);
         break;
     case '?':
-        tok = KW_TOK(QUESTIONMARK);
+        tok = KW_TOK(QMARK);
         break;
     case '#':
         switch(c = fgetc(file)) {
@@ -601,89 +584,85 @@ void lex_error(const char* filename, FILE* fd, unsigned line, const char* error)
 }
 
 static const char* const token_kind_strs[] = {
-    "LEX_EOF",
-    "NUMBER",
-    "NAME",
-    "STRINGCONST",
-    "TRUE",
-    "FALSE",
-    "VALOF",
-    "LV",
-    "RV",
-    "DIV",
-    "REM",
+    [1] = "IDENT",
+    "INTEGER",
+    "FLOAT",
+    "STRING",
+    "CHAR",
+    "LPAREN",
+    "RPAREN",
+    "LBRACE",
+    "RBRACE",
+    "LBRACKET",
+    "RBRACKET",
+    "SEMICOLON",
+    "COMMA",
+    "ASSIGN",
+    "COND",
+    "QMARK",
     "PLUS",
     "MINUS",
+    "STAR",
+    "SLASH",
     "EQ",
     "NE",
-    "LS",
-    "GR",
-    "LE",
+    "GT",
     "GE",
+    "LT",
+    "LE",
     "NOT",
-    "LSHIFT",
-    "RSHIFT",
     "LOGAND",
     "LOGOR",
-    "EQV",
-    "NEQV",
-    "COND",
-    "COMMA",
+    "XOR",
+    "LSHIFT",
+    "RSHIFT",
+    "TRUE",
+    "FALSE",
+    "LET",
     "AND",
-    "ASS",
-    "GOTO",
+    "VALOF",
     "RESULTIS",
-    "COLON",
-    "TEST",
-    "FOR",
+    "RETURN",
+    "FINISH",
+    "SKIP",
+    "REPEAT",
+    "BREAK",
     "IF",
     "UNLESS",
     "WHILE",
+    "FOR",
     "UNTIL",
-    "REPEAT",
-    "REPEATWHILE",
-    "REPEATUNTIL",
-    "BREAK",
-    "RETURN",
-    "FINISH",
     "SWITCHON",
     "MATCH",
     "EVERY",
     "CASE",
     "DEFAULT",
-    "LET",
-    "MANIFEST",
-    "GLOBAL",
-    "STATIC",
-    "BE",
-    "SECTBRA",
-    "SECTKET",
-    "RBRA",
-    "RKET",
-    "SBRA",
-    "SKET",
-    "SEMICOLON",
-    "INTO",
-    "TO",
     "DO",
-    "OR",
-    "VEC",
-    "STAR",
-    "SLCT",
-    "BITSPERBCPLWORD",
-    "QUESTIONMARK",
-    [CHAR_MAX] = "LEX_ERROR",
+    "TO",
+    "BY",
+    "OF",
+    "BE",
+    "SECTION",
+    "GET",
+    "GLOBAL",
+    "MANIFEST",
+    "STATIC",
+    "MOD",
+    "ABS",
+
+    "LEX_ERROR",
+    [0] = "LEX_EOF"
 };
 
 void dbg_print_token(struct token* t) {
     switch(t->kind) {
-        case NUMBER:
+        case TOKEN_INTEGER:
             printf("NUMBER %lu\n", t->val.integer);
             break;
-        case NAME:
+        case TOKEN_FLOAT:
             printf("NAME %s\n", t->val.string);
             break;
-        case STRINGCONST:
+        case TOKEN_STRING:
             printf("STRINGCONST %s\n", t->val.string);
             break;
         case LEX_ERROR:
