@@ -180,7 +180,7 @@ static const struct {
     {"of", TOKEN_OF},
     {"be", TOKEN_BE},
     {"section", TOKEN_SECTION},
-    {"get", TOKEN_GET},
+    {"require", TOKEN_REQUIRE},
     {"global", TOKEN_GLOBAL},
     {"manifest", TOKEN_MANIFEST},
     {"static", TOKEN_STATIC},
@@ -200,7 +200,7 @@ static enum token_kind get_system_word(const char* word) {
 }
 
 static inline bool is_word_char(char c) {
-    return isalnum(c) || c == '_' || c == '.';
+    return isalnum(c) || c == '_';
 }
 
 struct token read_alpha_seq(FILE* file) {
@@ -406,7 +406,6 @@ repeat:
             if((err = skip_conditional(file, line, tok.val.string)))
                 return ERR_TOK(err);
 
-           printf("$~ not yet implemented.");
             free((void*) tok.val.string);
             goto repeat;
         case '>':

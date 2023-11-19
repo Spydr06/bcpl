@@ -13,7 +13,6 @@ enum token_kind {
     TOKEN_STRING, // string constants
     TOKEN_CHAR, // character constant
 
-
     // symbols
     TOKEN_LPAREN, // `(`
     TOKEN_RPAREN, // `)`
@@ -23,6 +22,7 @@ enum token_kind {
     TOKEN_RBRACKET, // `]`
     TOKEN_SEMICOLON, // `;` 
     TOKEN_COMMA, // `,`
+    TOKEN_DOT, // `.`
     TOKEN_COLON, // `:`
     TOKEN_ASSIGN, // `:=`
     TOKEN_COND, // `->`
@@ -76,7 +76,7 @@ enum token_kind {
     TOKEN_OF, // `of` or `::`  
     TOKEN_BE, // `be`
     TOKEN_SECTION, // `section`
-    TOKEN_GET, // `get`
+    TOKEN_REQUIRE, // `require`
     TOKEN_GLOBAL, // `global`
     TOKEN_MANIFEST, // `manifest`
     TOKEN_STATIC, // `static`
