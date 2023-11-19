@@ -4,6 +4,7 @@
 #include "util.h"
 
 #include <stdbool.h>
+#include <stdint.h>
 
 //
 // Pre-declarations
@@ -25,10 +26,24 @@ struct ast_section {
 };
 
 //
+// Program
+//
+
+struct ast_program {
+    struct ptr_list* sections;
+    struct ptr_list* types;
+};
+
+void ast_program_init(struct ast_program* program);
+
+//
 // Types
 //
 
+typedef uint32_t ast_type_index_t;
+
 enum ast_type_kind {
+#define BUILTIN_PRIMITIVE_TYPE_START TYPE_UINT8
     TYPE_UINT8,
     TYPE_UINT16,
     TYPE_UINT32,
@@ -42,6 +57,7 @@ enum ast_type_kind {
     TYPE_BOOL,
     TYPE_CHAR,
 
+#define BUILTIN_PRIMITIVE_TYPE_END TYPE_UNIT
     TYPE_UNIT,
 
     TYPE_POINTER,
@@ -87,7 +103,7 @@ enum ast_expr_kind {
 
 #define AST_EXPR_HDR(_kind, _type) \
     enum ast_expr_kind _kind;      \
-    struct ast_generic_type _type  \
+    ast_type_index_t _type         \
 
 #define AST_CAST_EXPR(_generic, _type) \
     ((struct ast_##_type##_expr*) ((struct generic_expr*) (_generic)))
@@ -177,7 +193,7 @@ struct __attribute__((packed)) ast_function_decl {
 
     struct ptr_list* params; // ast_param_decl
     
-    struct ast_generic_type* return_type;
+    ast_type_index_t return_type;
 
     bool body_is_stmt;
     union {

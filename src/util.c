@@ -49,3 +49,17 @@ const char* string_list_contains(struct string_list* list, const char* string) {
     return NULL;
 }
 
+struct ptr_list* ptr_list_init(void) {
+    struct ptr_list* list = malloc(sizeof(struct ptr_list) + sizeof(void*) * PTR_LIST_INIT_SIZE);
+    list->size = 0;
+    list->alloc = PTR_LIST_INIT_SIZE;
+    return list;
+}
+
+void ptr_list_add(struct ptr_list** list, const void* data) {
+    if((*list)->size >= (*list)->alloc)
+        *list = realloc(*list, sizeof(struct ptr_list) + sizeof(void*) + ((*list)->alloc <<= 1));
+    (*list)->data[(*list)->size++] = data;
+}
+
+

@@ -462,12 +462,7 @@ repeat:
         tok = KW_TOK(EQ);
         break;
     case '!':
-        if((c = fgetc(file)) == '=')
-            tok = KW_TOK(NE);
-        else {
-            ungetc(c, file);
-            tok = ERR_TOK("unknown operator `!`");
-        }
+        tok = KW_TOK(EMARK);
         break;
     case ':':
         if((c = fgetc(file)) == '=')
@@ -502,10 +497,18 @@ repeat:
         }
         break;
     case '~':
-        tok = KW_TOK(NOT);
+        if((c = fgetc(file)) == '=')
+            tok = KW_TOK(NE);
+        else {
+            ungetc(c, file);
+            tok = KW_TOK(NOT);
+        }
         break;
     case '?':
         tok = KW_TOK(QMARK);
+        break;
+    case '@':
+        tok = KW_TOK(AT);
         break;
     case '#':
         switch(c = fgetc(file)) {
@@ -599,6 +602,8 @@ static const char* const token_kind_strs[] = {
     "ASSIGN",
     "COND",
     "QMARK",
+    "EMARK",
+    "AT",
     "PLUS",
     "MINUS",
     "STAR",

@@ -7,6 +7,7 @@
 
 #include <getopt.h>
 
+#include "ast.h"
 #include "context.h"
 #include "token.h"
 #include "util.h"
@@ -15,6 +16,7 @@
 
 static const struct option cmdline_options[] = {
     {"help", 0, NULL, 'h'},
+    {"shared", 0, NULL, 0},
     {NULL, 0, NULL, 0}
 };
 
@@ -22,8 +24,10 @@ static void help(const char* progname)
 {
     printf("Usage: %s <input file> [OPTIONS]\n\n", progname);
     puts("Options:");
-    printf("  -o <output file>  Set an output file; default: `%s`\n", DEFAULT_OUTPUT_FILE);
-    printf("  -D <tag name>     Set a BCPL tag\n");
+    printf("  -o <output file>  Set an output file; default: `%s`.\n", DEFAULT_OUTPUT_FILE);
+    printf("  -D <tag name>     Set a BCPL tag.\n");
+    printf("  -c                Skip linking and emit `.o` file.\n");
+    printf("  --shared          Create a shared library.\n");
     printf("  -h, --help        Print this help text and exit.\n");
     exit(EXIT_SUCCESS); 
 }
@@ -52,11 +56,17 @@ int main(int argc, char** argv) {
     ctx.output_file = DEFAULT_OUTPUT_FILE;
     ctx.progname = argv[0];
     ctx.tags = string_list_init();
+    ctx.build_kind = BUILD_EXEC;
+    ast_program_init(&ctx.ast);
 
-    int ch;
-    while((ch = getopt_long(argc, argv, "ho:D:", cmdline_options, NULL)) != EOF)
+    int ch, long_index;
+    while((ch = getopt_long(argc, argv, "ho:D:c", cmdline_options, &long_index)) != EOF)
     {
         switch(ch) {
+        case 0: // Long-form option encountered
+            if(strcmp(cmdline_options[long_index].name, "shared") == 0)
+                ctx.build_kind = BUILD_SHARED_OBJECT;
+            break;
         case 'h':
             help(argv[0]);
             break;
@@ -65,6 +75,9 @@ int main(int argc, char** argv) {
             break;
         case 'D':
             string_list_add(&ctx.tags, optarg);
+            break;
+        case 'c':
+            ctx.build_kind = BUILD_OBJECT;
             break;
         case '?':
             fprintf(stderr, "Try `%s --help` for more information.\n", argv[0]);
@@ -84,7 +97,7 @@ int main(int argc, char** argv) {
         if(!fileext)
             fatal_error(argv[0], "`%s`: unknown file format", input_file);
 
-        if(strcmp(fileext, "b") == 0)
+        if(strcmp(fileext, "bpp") == 0)
         {
             ctx.cur_filename = input_file;
 

@@ -27,6 +27,8 @@ enum token_kind {
     TOKEN_ASSIGN, // `:=`
     TOKEN_COND, // `->`
     TOKEN_QMARK, // `?`
+    TOKEN_EMARK, // `!`
+    TOKEN_AT, // `@`
 
     // operators
     TOKEN_PLUS, // `+`
@@ -86,6 +88,11 @@ enum token_kind {
     // lexer signals
     LEX_ERROR,
     LEX_EOF = 0,
+};
+
+struct location {
+    FILE* fd;
+    uint32_t offset;
 };
 
 struct token {
