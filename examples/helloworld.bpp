@@ -1,0 +1,6 @@
+section Main
+
+require Std
+
+let main() be writes("Hello, World")
+

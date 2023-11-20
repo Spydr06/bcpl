@@ -599,6 +599,8 @@ static const char* const token_kind_strs[] = {
     "RBRACKET",
     "SEMICOLON",
     "COMMA",
+    "DOT",
+    "COLON",
     "ASSIGN",
     "COND",
     "QMARK",
@@ -647,7 +649,7 @@ static const char* const token_kind_strs[] = {
     "OF",
     "BE",
     "SECTION",
-    "GET",
+    "REQUIRE",
     "GLOBAL",
     "MANIFEST",
     "STATIC",
@@ -668,6 +670,9 @@ void dbg_print_token(struct token* t) {
             break;
         case TOKEN_STRING:
             printf("STRINGCONST %s\n", t->val.string);
+            break;
+        case TOKEN_IDENT:
+            printf("IDENT %s\n", t->val.string);
             break;
         case LEX_ERROR:
             printf("LEX_ERROR %s\n", t->val.string);

@@ -5,7 +5,7 @@
 
 #include "context.h"
 
-void parse_file(struct context* ctx, FILE* fd);
+void parse_file(struct context* ctx, const char* filename, FILE* fd);
 
 #endif /* BCPLC_PARSER_H */
 

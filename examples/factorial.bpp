@@ -1,0 +1,12 @@
+section Main
+
+require Std
+
+let main = valof {
+    for i = 0 to 5 do
+        writef("fact(%n) = %n*n", i, fact(i))
+    resultis 0
+}
+
+and fact(i :: Int) = n = 0 -> 1, n * fact(n - 1)
+

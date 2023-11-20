@@ -7,7 +7,7 @@
 
 enum token_kind {
     // constants
-    TOKEN_IDENT, // identifiers
+    TOKEN_IDENT = 1, // identifiers
     TOKEN_INTEGER, // integer constants
     TOKEN_FLOAT, // floating-point constants
     TOKEN_STRING, // string constants

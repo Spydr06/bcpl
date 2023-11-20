@@ -9,6 +9,7 @@
 
 #include "ast.h"
 #include "context.h"
+#include "parser.h"
 #include "token.h"
 #include "util.h"
 
@@ -105,15 +106,7 @@ int main(int argc, char** argv) {
             if(!fd)
                 fatal_error(argv[0], "cannot find `%s`: %s", input_file, strerror(errno));
 
-            struct token cur_tok;
-            unsigned line = 1;
-            do {
-                cur_tok = next_token(fd, &line, &cur_tok, &ctx.tags);
-                if(cur_tok.kind == LEX_ERROR)
-                    lex_error(input_file, fd, line, cur_tok.val.string ? cur_tok.val.string : "");
-                dbg_print_token(&cur_tok);
-            } while(cur_tok.kind != LEX_EOF);
-            
+            parse_file(&ctx, input_file, fd);           
             fclose(fd);
         }
         else
