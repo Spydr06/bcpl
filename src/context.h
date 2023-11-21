@@ -3,6 +3,7 @@
 
 #include "ast.h"
 #include "util.h"
+#include <stdio.h>
 
 enum build_kind {
     BUILD_EXEC,

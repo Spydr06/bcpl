@@ -1,6 +1,7 @@
 #ifndef BCPLC_TOKEN_H
 #define BCPLC_TOKEN_H
 
+#include "context.h"
 #include "util.h"
 #include <stdint.h>
 #include <stdio.h>
@@ -90,23 +91,41 @@ enum token_kind {
     LEX_EOF = 0,
 };
 
-struct location {
+struct source_file {
     FILE* fd;
-    uint32_t offset;
+    const char* path;
+    size_t line;
+};
+
+struct location {
+    struct source_file* file;
+    size_t offset;
+    uint32_t line;
+    uint16_t width;
+};
+
+union token_value {
+    const char* string;
+    uint64_t integer;
 };
 
 struct token {
     enum token_kind kind;
-    union {
-        const char* string;
-        uint64_t integer;
-    } val;
+    struct location loc;
+    union token_value val;
 };
 
-struct token next_token(FILE* file, unsigned* line, struct token* prev, struct string_list** tags);
+void next_token(struct source_file* file, struct token* tok, struct token* prev, struct string_list** tags);
 
-void lex_error(const char* filename, FILE* fd, unsigned line, const char* error);
+void 
+#ifdef __GLIBC__ 
+    __attribute__((format(printf, 3, 4)))
+#endif 
+    print_err_for(const struct context* ctx, const struct location* loc, const char* error, ...);
 
+void lex_error(const char* filename, FILE* fd, uint32_t line, const char* error);
+
+void print_err_for(const struct context* ctx, const struct location* loc, const char* error, ...);
 void dbg_print_token(struct token* t);
 
 #endif

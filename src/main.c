@@ -106,7 +106,12 @@ int main(int argc, char** argv) {
             if(!fd)
                 fatal_error(argv[0], "cannot find `%s`: %s", input_file, strerror(errno));
 
-            parse_file(&ctx, input_file, fd);           
+            struct source_file file = {
+                .fd = fd,
+                .line = 1,
+                .path = input_file
+            };
+            parse_file(&ctx, &file);
             fclose(fd);
         }
         else

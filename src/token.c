@@ -5,16 +5,61 @@
 #include <inttypes.h>
 #include <stdbool.h>
 #include <stdint.h>
+#include <stdarg.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <ctype.h>
 #include <limits.h>
 
-#define KW_TOK(_kind) (struct token){.kind = (TOKEN_##_kind)}
-#define ERR_TOK(_err) (struct token){.kind = LEX_ERROR, .val.string = (_err)}
-#define EOF_TOK (struct token){.kind = LEX_EOF}
-#define STR_TOK(_kind, _strval) (struct token){.kind = (TOKEN_##_kind), .val.string = (_strval)}
+#define LOC_FROM_FILE(file, w) (         \
+    (struct location) {                  \
+        .file=(file),                    \
+        .line=((uint32_t) (file)->line), \
+        .width=(w),                      \
+        .offset=ftell((file)->fd) - (w)  \
+    })
+
+#define ERR_TOK(tok, file, error) ( \
+    init_token((tok), LEX_ERROR,    \
+        LOC_FROM_FILE(file, 1),     \
+        (union token_value) {       \
+            .string=(error)         \
+        }                           \
+    ))
+
+#define STR_TOK(tok, kind, file, str, loc) ( \
+    init_token((tok), TOKEN_##kind,          \
+        (loc),                               \
+        (union token_value) {                \
+            .string=str                      \
+        }                                    \
+    ))
+
+#define BASIC_TOK(tok, file, kind) (               \
+    init_token((tok), (kind),                      \
+        LOC_FROM_FILE(file, token_widths[(kind)]), \
+        (union token_value){.string=NULL}          \
+    ))
+
+#define KW_TOK(tok, file, kind) BASIC_TOK(tok, file, TOKEN_##kind)
+#define EOF_TOK(tok, file) BASIC_TOK(tok, file, LEX_EOF)
+
+static inline void init_token(struct token* tok, enum token_kind kind, struct location loc, union token_value val) {
+    tok->kind = kind;
+    tok->loc = loc;
+    tok->val = val;
+}
+
+static const uint32_t token_widths[] = {
+    [1] = 1, 1, 1, 1, 3, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 2, 2, 1, 1, 1,
+    1, 1, 1, 1,
+    1, 2, 1, 2, 1, 2,
+    1, 1, 1, 1, 2, 2,
+    4, 5, 3, 3, 5, 8, 6, 6, 4, 6, 5, 2, 6, 5, 3, 5, 8, 5, 5, 4, 7, 2, 2, 2, 2, 2, 7, 7, 5, 8, 6, 3, 3,
+    1,
+    [0] = 0
+};
 
 enum format_kind {
     DECIMAL = 10,
@@ -101,54 +146,73 @@ static const char* resolve_escape_codes(char* strval) {
     return NULL;
 }
 
-struct token read_str_constant(FILE* file, char quote) {
+void read_str_constant(struct source_file* file, struct token* tok, char quote) {
     char c;
-    size_t start = ftell(file); 
+    size_t start = ftell(file->fd); 
 
-    while((c = fgetc(file)) != quote) {
-        if(c == EOF || c == '\n')
-            return ERR_TOK("unexpected end of line; expect `'`");
+    while((c = fgetc(file->fd)) != quote) {
+        if(c == EOF || c == '\n') {
+            ERR_TOK(tok, file, "unexpected end of line; expect `'`");
+            return;
+        }
     }
     
-    size_t end = ftell(file);
-    fseek(file, start, SEEK_SET);
+    size_t end = ftell(file->fd);
+    fseek(file->fd, start, SEEK_SET);
 
     char* strval = calloc(end - start, sizeof(char));
-    fread(strval, sizeof(char), end - start - 1, file);
-    fseek(file, end, SEEK_SET);
+    fread(strval, sizeof(char), end - start - 1, file->fd);
+    fseek(file->fd, end, SEEK_SET);
 
     const char* err = resolve_escape_codes(strval);
-    if(err)
-        return ERR_TOK(err);
+    if(err) {
+        ERR_TOK(tok, file, err);
+        return;
+    }
+
+    struct location loc = {
+        .file = file,
+        .line = file->line,
+        .offset = start - 1,
+        .width = end - start + 1
+    };
 
     if(quote == '\'') {
         if(strlen(strval) > 1)
-            return ERR_TOK("char literal has more than one characters");
-        return STR_TOK(CHAR, strval);
+            ERR_TOK(tok, file, "char literal has more than one characters");
+        STR_TOK(tok, CHAR, file, strval, loc);
+        return;
     }
-    return STR_TOK(STRING, strval);
+    STR_TOK(tok, STRING, file, strval, loc);
 }
 
 // TODO: fp support
-struct token read_num_constant(FILE* file, enum format_kind format) {
+void read_num_constant(struct source_file* file, struct token* tok, enum format_kind format) {
     char buf[65];
     unsigned i = 0;
     
-    while((isalnum(buf[i] = fgetc(file)) || buf[i] == '_') && buf[i] != EOF) {
-        if(i > 64)
-            return ERR_TOK("numeric constant too long");
-        if(strchr(digits[format], buf[i]) == NULL)
-            return ERR_TOK("unexpected character in numeric constant");
+    while((isalnum(buf[i] = fgetc(file->fd)) || buf[i] == '_') && buf[i] != EOF) {
+        if(i > 64) {
+            ERR_TOK(tok, file, "numeric constant too long");
+            return;
+        }
+        if(strchr(digits[format], buf[i]) == NULL) {
+            ERR_TOK(tok, file, "unexpected character in numeric constant");
+            return;
+        }
         if(buf[i] != '_')
             i++;
     }
+    ungetc(buf[i], file->fd);
     buf[i] = '\0';
 
     uint64_t val = strtoull(buf, NULL, format);
-    if(val == ULLONG_MAX && errno)
-        return ERR_TOK("invalid numeric constant");
-
-    return (struct token){.kind = TOKEN_INTEGER, .val.integer = val};
+    if(val == ULLONG_MAX && errno) {
+        ERR_TOK(tok, file, "invalid numeric constant");
+        return;
+    }
+    
+    init_token(tok, TOKEN_INTEGER, LOC_FROM_FILE(file, strlen(buf)), (union token_value){.integer=val});
 }
 
 static const struct {
@@ -203,21 +267,29 @@ static inline bool is_word_char(char c) {
     return isalnum(c) || c == '_';
 }
 
-struct token read_alpha_seq(FILE* file) {
-    size_t start = ftell(file) - 1;
-    while(is_word_char(fgetc(file)));
-    size_t end = ftell(file);
-    fseek(file, start, SEEK_SET);
+static void read_alpha_seq(struct source_file* file, struct token* tok) {
+    size_t start = ftell(file->fd) - 1;
+    while(is_word_char(fgetc(file->fd)));
+    size_t end = ftell(file->fd);
+    fseek(file->fd, start, SEEK_SET);
 
     char* word = calloc(end - start, sizeof(char));
-    fread(word, sizeof(char), end - start - 1, file);
+    fread(word, sizeof(char), end - start - 1, file->fd);
 
     enum token_kind kind = get_system_word(word); 
-    if(kind == TOKEN_IDENT)
-        return (struct token){.kind = TOKEN_IDENT, .val.string = word};
+    if(kind == TOKEN_IDENT) {
+        struct location loc = {
+            .file = file,
+            .line = file->line,
+            .offset = start,
+            .width = end - start - 1
+        };
+
+        STR_TOK(tok, IDENT, file, word, loc);
+    }
     else {
         free(word);
-        return (struct token){.kind = kind};
+        BASIC_TOK(tok, file, kind);
     }
 }
 
@@ -302,14 +374,14 @@ bool must_start_command(enum token_kind kind) {
     }
 }
 
-const char* skip_conditional(FILE* file, unsigned* line, const char* tag) {
+const char* skip_conditional(struct source_file* file, const char* tag) {
     char c;
     struct token tok;
-    while((c = fgetc(file)) != EOF) {
-        if(c == '$' && fgetc(file) == '>') {
-            if(!is_word_char(fgetc(file)))
+    while((c = fgetc(file->fd)) != EOF) {
+        if(c == '$' && fgetc(file->fd) == '>') {
+            if(!is_word_char(fgetc(file->fd)))
                 return "expect identifier after `$>`";
-            tok = read_alpha_seq(file);
+            read_alpha_seq(file, &tok);
             if(strcmp(tag, tok.val.string) == 0) {
                 free((void*) tok.val.string);
                 break;
@@ -317,244 +389,290 @@ const char* skip_conditional(FILE* file, unsigned* line, const char* tag) {
             free((void*) tok.val.string);
         }
         else if(c == '\n')
-            (*line)++;
+            (file->line)++;
     }
 
     return NULL;
 }
 
-struct token next_token(FILE* file, unsigned* line, struct token* prev, struct string_list** tags) {
+void next_token(struct source_file* file, struct token* tok, struct token* prev, struct string_list** tags) {
     char c;
     
 repeat:
     ;
 
     bool newline = false;
-    while(isspace(c = fgetc(file))) {
+    while(isspace(c = fgetc(file->fd))) {
         if(c == '\n') {
-            (*line)++;
+            (file->line)++;
             newline = true;
         }
     };
 
-    size_t start = ftell(file) - 1;
+    size_t start = ftell(file->fd) - 1;
     
-    struct token tok;
-
     switch(c) {
     case EOF:
-        tok = EOF_TOK;
+        EOF_TOK(tok, file);
         break;
     case '(':
-        tok = KW_TOK(LPAREN);
+        KW_TOK(tok, file, LPAREN);
         break;
     case ')':
-        tok = KW_TOK(RPAREN);
+        KW_TOK(tok, file, RPAREN);
         break;
     case '[':
-        tok = KW_TOK(LBRACKET);
+        KW_TOK(tok, file, LBRACKET);
         break;
     case ']':
-        tok = KW_TOK(RBRACKET);
+        KW_TOK(tok, file, RBRACKET);
         break;
     case '{':
-        tok = KW_TOK(LBRACE);
+        KW_TOK(tok, file, LBRACE);
         break;
     case '}':
-        tok = KW_TOK(RBRACE);
+        KW_TOK(tok, file, RBRACE);
         break;
     case '$':
         // compile-time conditionals:
-        switch(c = fgetc(file)) {
-#define GET_TAG(sym) if(!is_word_char(fgetc(file)))                           \
-                        return ERR_TOK("expect idetntifier after `" sym "`"); \
-                    tok = read_alpha_seq(file)
+        switch(c = fgetc(file->fd)) {
+#define GET_TAG(sym) if(!is_word_char(fgetc(file->fd))) {                           \
+                        ERR_TOK(tok, file, "expect idetntifier after `" sym "`");   \
+                        return;                                                     \
+                    }                                                               \
+                    read_alpha_seq(file, tok)
         case '$':
             GET_TAG("$$");
-            tok = read_alpha_seq(file);
-            if(string_list_contains(*tags, tok.val.string))
+            if(string_list_contains(*tags, tok->val.string))
             {
-                const char* removed = string_list_remove(*tags, tok.val.string);
-                free((void*) tok.val.string);
+                const char* removed = string_list_remove(*tags, tok->val.string);
+                free((void*) tok->val.string);
                 free((void*) removed);
             }
             else
-                string_list_add(tags, tok.val.string);
+                string_list_add(tags, tok->val.string);
             goto repeat;
         case '<': {
             GET_TAG("<");
-            if(string_list_contains(*tags, tok.val.string)) {
-                free((void*) tok.val.string);
+            if(string_list_contains(*tags, tok->val.string)) {
+                free((void*) tok->val.string);
                 goto repeat;
             }
             
             const char* err;
-            if((err = skip_conditional(file, line, tok.val.string)))
-                return ERR_TOK(err);
+            if((err = skip_conditional(file, tok->val.string))) {
+                ERR_TOK(tok, file, err);
+                return;
+            }
 
-            free((void*) tok.val.string);
+            free((void*) tok->val.string);
             goto repeat;
         }
         case '~':
             GET_TAG("$~");
-            if(!string_list_contains(*tags, tok.val.string)) {
-                free((void*) tok.val.string);
+            if(!string_list_contains(*tags, tok->val.string)) {
+                free((void*) tok->val.string);
                 goto repeat;
             }
             
             const char* err;
-            if((err = skip_conditional(file, line, tok.val.string)))
-                return ERR_TOK(err);
+            if((err = skip_conditional(file, tok->val.string))) {
+                ERR_TOK(tok, file, err);
+                return;
+            }
 
-            free((void*) tok.val.string);
+            free((void*) tok->val.string);
             goto repeat;
         case '>':
-            if(!is_word_char(fgetc(file))) {
-                tok = ERR_TOK("expect identifier after `$>`");
+            if(!is_word_char(fgetc(file->fd))) {
+                ERR_TOK(tok, file, "expect identifier after `$>`");
                 break;
             }
-            while(is_word_char(c = fgetc(file)));
-            ungetc(c, file);
+            while(is_word_char(c = fgetc(file->fd)));
+            ungetc(c, file->fd);
             goto repeat;
 #undef GET_TAG
         default:
-            tok = ERR_TOK("unexpected character after `$`; expect `(` or `)`");
+            ERR_TOK(tok, file, "unexpected character after `$`; expect `$` ,`<`, `>` or `~` ");
             break;
         }
         break;
     case '"':
     case '\'':
-        tok = read_str_constant(file, c);
+        read_str_constant(file, tok, c);
         break;
     case '+':
-        tok = KW_TOK(PLUS);
+        KW_TOK(tok, file, PLUS);
         break;
     case '-':
-        if((c = fgetc(file)) == '>')
-            tok = KW_TOK(COND);
+        if((c = fgetc(file->fd)) == '>')
+            KW_TOK(tok, file, COND);
         else {
-            ungetc(c, file);
-            tok = KW_TOK(MINUS);
+            ungetc(c, file->fd);
+            KW_TOK(tok, file, MINUS);
         }
         break;
     case '*':
-        tok = KW_TOK(STAR);
+        KW_TOK(tok, file, STAR);
         break;
     case '/':
-        if((c = fgetc(file)) == '/') {
-            while((c = fgetc(file)) != '\n' && c != EOF);
+        if((c = fgetc(file->fd)) == '/') {
+            while((c = fgetc(file->fd)) != '\n' && c != EOF);
             goto repeat;
         }
         else if(c == '*') {
-            while((c = fgetc(file)) != EOF)
-                if(c == '*' && fgetc(file) == '/')
+            while((c = fgetc(file->fd)) != EOF)
+                if(c == '*' && fgetc(file->fd) == '/')
                     goto repeat;
                 else if(c == '\n')
-                    (*line)++;
-            tok = ERR_TOK("unclosed multiline comment");
+                    (file->line)++;
+            ERR_TOK(tok, file, "unclosed multiline comment");
         }
         else {
-            ungetc(c, file);
-            tok = KW_TOK(SLASH);
+            ungetc(c, file->fd);
+            KW_TOK(tok, file, SLASH);
         }
         break;
     case '=':
-        tok = KW_TOK(EQ);
+        KW_TOK(tok, file, EQ);
         break;
     case '!':
-        tok = KW_TOK(EMARK);
+        KW_TOK(tok, file, EMARK);
         break;
     case ':':
-        if((c = fgetc(file)) == '=')
-            tok = KW_TOK(ASSIGN);
+        if((c = fgetc(file->fd)) == '=')
+            KW_TOK(tok, file, ASSIGN);
         else if(c == ':')
-            tok = KW_TOK(OF);
+            KW_TOK(tok, file, OF);
         else {
-            ungetc(c, file);
-            tok = KW_TOK(COLON);
+            ungetc(c, file->fd);
+            KW_TOK(tok, file, COLON);
         }
         break;
     case ',':
-        tok = KW_TOK(COMMA);
+        KW_TOK(tok, file, COMMA);
         break;
     case ';':
-        tok = KW_TOK(SEMICOLON);
+        KW_TOK(tok, file, SEMICOLON);
         break;
     case '<':
-        if((c = fgetc(file)) == '=')
-            tok = KW_TOK(LE);
+        if((c = fgetc(file->fd)) == '=')
+            KW_TOK(tok, file, LE);
         else {
-            ungetc(c, file);
-            tok = KW_TOK(LT);
+            ungetc(c, file->fd);
+            KW_TOK(tok, file, LT);
         }
         break;
     case '>':
-        if((c = fgetc(file)) == '=')
-            tok = KW_TOK(GE);
+        if((c = fgetc(file->fd)) == '=')
+            KW_TOK(tok, file, GE);
         else {
-            ungetc(c, file);
-            tok = KW_TOK(GT);
+            ungetc(c, file->fd);
+            KW_TOK(tok, file, GT);
         }
         break;
     case '~':
-        if((c = fgetc(file)) == '=')
-            tok = KW_TOK(NE);
+        if((c = fgetc(file->fd)) == '=')
+            KW_TOK(tok, file, NE);
         else {
-            ungetc(c, file);
-            tok = KW_TOK(NOT);
+            ungetc(c, file->fd);
+            KW_TOK(tok, file, NOT);
         }
         break;
     case '?':
-        tok = KW_TOK(QMARK);
+        KW_TOK(tok, file, QMARK);
         break;
     case '@':
-        tok = KW_TOK(AT);
+        KW_TOK(tok, file, AT);
         break;
     case '#':
-        switch(c = fgetc(file)) {
+        switch(c = fgetc(file->fd)) {
         case 'B':
         case 'b':
-            tok = read_num_constant(file, BINARY);
+            read_num_constant(file, tok, BINARY);
             break;
         case 'O':
         case 'o':
-            tok = read_num_constant(file, OCTAL);
+            read_num_constant(file, tok, OCTAL);
             break;
         case 'X':
         case 'x':
-            tok = read_num_constant(file, HEXADECIMAL);
+            read_num_constant(file, tok, HEXADECIMAL);
             break;
         default:
-            ungetc(c, file);
-            tok = read_num_constant(file, OCTAL);
+            ungetc(c, file->fd);
+            read_num_constant(file, tok, OCTAL);
         }
         break;
     default:
         if(isdigit(c)) {
-            ungetc(c, file);
-            tok = read_num_constant(file, DECIMAL); 
+            ungetc(c, file->fd);
+            read_num_constant(file, tok, DECIMAL); 
         } 
         else if(isalpha(c))
-            tok = read_alpha_seq(file);
+            read_alpha_seq(file, tok);
         else
-            tok = ERR_TOK("unexpected character");
+            ERR_TOK(tok, file, "unexpected character");
         break;
     }
 
-    if(newline && ends_command(prev->kind) && may_start_command(tok.kind)) {
-        fseek(file, start, SEEK_SET);
-        return KW_TOK(SEMICOLON);
+    if(newline && ends_command(prev->kind) && may_start_command(tok->kind)) {
+        fseek(file->fd, start, SEEK_SET);
+        KW_TOK(tok, file, SEMICOLON);
     }
 
-    if(!newline && ends_expression(prev->kind) && must_start_command(tok.kind)) {
-        fseek(file, start, SEEK_SET);
-        return KW_TOK(DO);
+    else if(!newline && ends_expression(prev->kind) && must_start_command(tok->kind)) {
+        fseek(file->fd, start, SEEK_SET);
+        KW_TOK(tok, file, DO);
     }
-
-    return tok;
 }
 
-void lex_error(const char* filename, FILE* fd, unsigned line, const char* error)
+void print_err_for(const struct context* ctx, const struct location* loc, const char* error, ...)
+{
+    size_t fd_pos = ftell(loc->file->fd);
+    size_t line_start = loc->offset + 1;
+
+    while(line_start > 0) {
+        fseek(loc->file->fd, --line_start - 1, SEEK_SET);
+        char c;
+        if((c = fgetc(loc->file->fd)) == '\n')
+            break;
+    }
+
+    size_t line_end = loc->offset + loc->width;
+    fseek(loc->file->fd, line_end, SEEK_SET);
+    char c;
+    while((c = fgetc(loc->file->fd)) != '\n' && c != EOF)
+        line_end++;
+
+    fseek(loc->file->fd, line_start, SEEK_SET);
+    char* line_str = calloc(line_end - line_start, sizeof(char));
+    fread(line_str, line_end - line_start, sizeof(char), loc->file->fd);
+
+    size_t column = loc->offset - line_start;
+
+    fprintf(stderr, "\033[1m%s:%u:%zu: \033[31merror:\033[0m ", loc->file->path, loc->line, column);
+
+    va_list ap;
+    va_start(ap, error); 
+    vfprintf(stderr, error, ap);
+    va_end(ap);
+
+    fprintf(stderr, "\n\033[1m\033[90m %4d \033[22m|\033[0m ", loc->line);
+    fwrite(line_str, sizeof(char), column, stderr);
+    fprintf(stderr, "\033[33m\033[1m");
+    fwrite(line_str + column, sizeof(char), loc->width, stderr);
+    fprintf(stderr, "\033[0m%s\n", line_str + column + loc->width);
+
+    fprintf(stderr, "\033[90m      |\033[0m %*s\033[33m", (int) column, "");
+    for(size_t i = 0; i < MAX(loc->width, 1); i++)
+        fputc('^', stderr);
+    fprintf(stderr, "\033[90m <- here\033[0m\n\n"); 
+
+    fseek(loc->file->fd, fd_pos, SEEK_SET);
+}
+
+void lex_error(const char* filename, FILE* fd, uint32_t line, const char* error)
 {
     size_t pos = ftell(fd);
     size_t line_start = pos;
@@ -661,6 +779,7 @@ static const char* const token_kind_strs[] = {
 };
 
 void dbg_print_token(struct token* t) {
+    printf("%s:%u:%zu->%u ", t->loc.file->path, t->loc.line, t->loc.offset, t->loc.width);
     switch(t->kind) {
         case TOKEN_INTEGER:
             printf("NUMBER %lu\n", t->val.integer);
