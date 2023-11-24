@@ -62,4 +62,8 @@ void ptr_list_add(struct ptr_list** list, const void* data) {
     (*list)->data[(*list)->size++] = data;
 }
 
+void ptr_list_pop(struct ptr_list *list) {
+    if(list->size)
+        list->size--;
+}
 

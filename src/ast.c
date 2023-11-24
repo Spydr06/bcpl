@@ -127,6 +127,13 @@ void ast_typecast_init(struct ast_typecast_expr* typecast, struct location loc, 
     typecast->expr = expr;
 }
 
+void ast_valof_init(struct ast_valof_expr* valof, struct location* loc) {
+    memset(valof, 0, sizeof(struct ast_valof_expr));
+
+    valof->kind = EXPR_VALOF;
+    valof->loc = *loc;
+}
+
 void ast_expr_stmt_init(struct ast_expr_stmt* stmt, const struct location* loc, struct ast_generic_expr* expr) {
     memset(stmt, 0, sizeof(struct ast_expr_stmt));
 
@@ -145,6 +152,13 @@ void ast_block_stmt_init(struct ast_block_stmt* block, const struct location* lo
 
 void ast_block_stmt_add(struct ast_block_stmt* block, struct ast_generic_stmt* stmt) {
     ptr_list_add(&block->stmts, stmt);
+}
+
+void ast_resultis_stmt_init(struct ast_resultis_stmt* stmt, const struct location* loc) {
+    memset(stmt, 0, sizeof(struct ast_resultis_stmt));
+
+    stmt->kind = STMT_RESULTIS;
+    stmt->loc = *loc;
 }
 
 ast_type_index_t ast_generic_decl_type(struct ast_generic_decl* decl) {

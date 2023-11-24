@@ -64,6 +64,7 @@ struct ptr_list {
 
 struct ptr_list* ptr_list_init(void);
 void ptr_list_add(struct ptr_list** list, const void* data);
+void ptr_list_pop(struct ptr_list* list);
 
 #endif /* BCPLC_UTIL_H */
 

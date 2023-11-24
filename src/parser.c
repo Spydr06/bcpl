@@ -16,8 +16,12 @@ struct parser_context {
     struct token cur_tok;
     struct token last_tok;
 
+    struct ast_valof_expr* current_valof;
+
     struct ast_program* program;
 };
+
+static struct ast_generic_stmt* parse_statement(struct parser_context* ctx, bool require_semicolon);
 
 inline static void parser_advance(struct parser_context* ctx) {
     ctx->last_tok = ctx->cur_tok;
@@ -93,12 +97,27 @@ static struct ast_generic_expr* parse_expression(struct parser_context* ctx) {
         ast_stringlit_init(AST_CAST_EXPR(expr, stringlit), &ctx->cur_tok.loc, ctx->cur_tok.val.string);
         parser_advance(ctx);
         break;
+    case TOKEN_VALOF: {
+        expr = malloc(sizeof(struct ast_valof_expr));
+        ast_valof_init(AST_CAST_EXPR(expr, valof), &ctx->cur_tok.loc);
+        parser_advance(ctx);
+
+        struct ast_valof_expr* outer = ctx->current_valof;
+        ctx->current_valof = AST_CAST_EXPR(expr, valof);
+
+        AST_CAST_EXPR(expr, valof)->body = parse_statement(ctx, false);
+
+        ctx->current_valof = outer;
+    } break;
     default:
         print_compiler_error(ctx->ctx, ERROR_FATAL, &ctx->cur_tok.loc, "unexpected token, expect expression");
     }
 
     return expr;
 }
+
+#define SKIP_SEMICOLON() if(require_semicolon) \
+    parser_consume(ctx, TOKEN_SEMICOLON, "expect `;` after expression statement")
 
 static struct ast_generic_stmt* parse_statement(struct parser_context* ctx, bool require_semicolon) {
     struct ast_generic_stmt* stmt;
@@ -115,18 +134,41 @@ static struct ast_generic_stmt* parse_statement(struct parser_context* ctx, bool
         
         parser_advance(ctx);
         break;
+    case TOKEN_RESULTIS:
+        stmt = malloc(sizeof(struct ast_resultis_stmt));
+        ast_resultis_stmt_init(AST_CAST_STMT(stmt, resultis), &ctx->cur_tok.loc);
+        
+        parser_advance(ctx);
+
+        AST_CAST_STMT(stmt, resultis)->expr = parse_expression(ctx);
+        SKIP_SEMICOLON();
+
+        if(!ctx->current_valof) {
+            print_compiler_error(ctx->ctx, ERROR_DEFAULT, &stmt->loc, "encountered `resultis` statement outside of `valof` expression");
+            break;
+        }
+
+        if(!ctx->current_valof->type)
+            ctx->current_valof->type = AST_CAST_STMT(stmt, resultis)->expr->type;
+        else {
+            struct ast_typecast_expr* cast = malloc(sizeof(struct ast_typecast_expr));
+            ast_typecast_init(cast, stmt->loc, ctx->current_valof->type, AST_CAST_STMT(stmt, resultis)->expr);
+            AST_CAST_STMT(stmt, resultis)->expr = AST_AS_GENERIC_EXPR(cast);
+        }
+        break;
     default: {
             stmt = malloc(sizeof(struct ast_expr_stmt));
 
             struct ast_generic_expr* expr = parse_expression(ctx);
             ast_expr_stmt_init(AST_CAST_STMT(stmt, expr), &expr->loc, expr);
-            if(require_semicolon && stmt->kind != STMT_BLOCK)
-                parser_consume(ctx, TOKEN_SEMICOLON, "expect `;` after expression statement");
+            SKIP_SEMICOLON();
         }
     }
 
     return stmt;
 }
+
+#undef SKIP_SEMICOLON
 
 static void parse_require(struct parser_context* ctx, struct ast_section* section) {
     parser_consume(ctx, TOKEN_REQUIRE, "expect `require`");

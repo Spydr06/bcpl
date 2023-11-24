@@ -191,6 +191,8 @@ struct ast_valof_expr {
     ast_generic_stmt_t* body;
 };
 
+void ast_valof_init(struct ast_valof_expr* valof, struct location* loc);
+
 #undef AST_EXPR_HDR
 
 //
@@ -200,6 +202,7 @@ struct ast_valof_expr {
 enum ast_stmt_kind {
     STMT_EXPR,
     STMT_BLOCK,
+    STMT_RESULTIS,
 };
 
 #define AST_STMT_HDR(_kind, _loc) \
@@ -232,6 +235,14 @@ struct ast_block_stmt {
 
 void ast_block_stmt_init(struct ast_block_stmt* block, const struct location* loc);
 void ast_block_stmt_add(struct ast_block_stmt* block, struct ast_generic_stmt* stmt);
+
+struct ast_resultis_stmt {
+    AST_STMT_HDR(kind, loc);
+
+    struct ast_generic_expr* expr;
+};
+
+void ast_resultis_stmt_init(struct ast_resultis_stmt* stmt, const struct location* loc);
 
 #undef AST_STMT_HDR
 
