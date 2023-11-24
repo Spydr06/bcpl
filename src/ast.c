@@ -118,13 +118,33 @@ void ast_stringlit_init(struct ast_stringlit_expr *lit, struct location *loc, co
     // TODO: lit->kind
 }
 
-void ast_typecast_init(struct ast_typecast_expr* typecast, struct location* loc, ast_type_index_t result_type, struct ast_generic_expr* expr) {
+void ast_typecast_init(struct ast_typecast_expr* typecast, struct location loc, ast_type_index_t result_type, struct ast_generic_expr* expr) {
     memset(typecast, 0, sizeof(struct ast_typecast_expr));
 
     typecast->kind = EXPR_TYPECAST;
-    typecast->loc = *loc;
+    typecast->loc = loc;
     typecast->result_type = result_type;
     typecast->expr = expr;
+}
+
+void ast_expr_stmt_init(struct ast_expr_stmt* stmt, const struct location* loc, struct ast_generic_expr* expr) {
+    memset(stmt, 0, sizeof(struct ast_expr_stmt));
+
+    stmt->kind = STMT_EXPR;
+    stmt->loc = *loc;
+    stmt->expr = expr;
+}
+
+void ast_block_stmt_init(struct ast_block_stmt* block, const struct location* loc) {
+    memset(block, 0, sizeof(struct ast_block_stmt));
+
+    block->kind = STMT_BLOCK;
+    block->loc = *loc;
+    block->stmts = ptr_list_init();
+}
+
+void ast_block_stmt_add(struct ast_block_stmt* block, struct ast_generic_stmt* stmt) {
+    ptr_list_add(&block->stmts, stmt);
 }
 
 ast_type_index_t ast_generic_decl_type(struct ast_generic_decl* decl) {
@@ -170,6 +190,8 @@ void ast_generic_decl_set_expr(struct ast_generic_decl* decl, struct ast_generic
     case DECL_FUNCTION:
         AST_CAST_DECL(decl, function)->body_is_stmt = false;
         AST_CAST_DECL(decl, function)->body.expr = expr;
+        if(!AST_CAST_DECL(decl, function)->return_type)
+            AST_CAST_DECL(decl, function)->return_type = expr->type;
         break;
     default:
         assert(false);
@@ -199,5 +221,39 @@ void ast_static_decl_init(struct ast_static_decl* decl, const struct location* l
     decl->kind = DECL_STATIC;
     decl->loc = *loc;
     decl->ident = ident;
+}
+
+void ast_param_init(struct ast_param* param, const struct location* loc, const char* ident) {
+    memset(param, 0, sizeof(struct ast_param));
+
+    param->loc = *loc;
+    param->ident = ident;
+}
+
+bool ast_param_has_default_value(struct ast_param* param) {
+    return param->default_value != NULL;
+}
+
+void ast_function_decl_init(struct ast_function_decl* decl, const struct location* loc, const char* ident, bool tailcall_recursive) {
+    memset(decl, 0, sizeof(struct ast_function_decl));
+
+    decl->kind = DECL_FUNCTION;
+    decl->loc = *loc;
+    decl->ident = ident;
+    decl->tailcall_recursive = tailcall_recursive;
+
+    decl->params = ptr_list_init();
+}
+
+void ast_function_decl_add_param(struct ast_function_decl* decl, struct ast_param* param) {
+    ptr_list_add(&decl->params, param);
+    if(!param->default_value)
+        decl->required_params++;
+}
+
+void ast_function_decl_set_stmt(struct ast_function_decl* decl, struct ast_generic_stmt* stmt) {
+    decl->body_is_stmt = true;
+    decl->body.stmt = stmt;
+    decl->return_type = PRIMITIVE_TYPE_TO_INDEX(TYPE_UNIT);
 }
 

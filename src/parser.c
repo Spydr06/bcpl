@@ -100,6 +100,34 @@ static struct ast_generic_expr* parse_expression(struct parser_context* ctx) {
     return expr;
 }
 
+static struct ast_generic_stmt* parse_statement(struct parser_context* ctx, bool require_semicolon) {
+    struct ast_generic_stmt* stmt;
+    
+    switch(ctx->cur_tok.kind) {
+    case TOKEN_LBRACE:
+        stmt = malloc(sizeof(struct ast_block_stmt));
+        ast_block_stmt_init(AST_CAST_STMT(stmt, block), &ctx->cur_tok.loc);
+
+        parser_advance(ctx);
+
+        while(ctx->cur_tok.kind != TOKEN_RBRACE)
+            parse_statement(ctx, true);
+        
+        parser_advance(ctx);
+        break;
+    default: {
+            stmt = malloc(sizeof(struct ast_expr_stmt));
+
+            struct ast_generic_expr* expr = parse_expression(ctx);
+            ast_expr_stmt_init(AST_CAST_STMT(stmt, expr), &expr->loc, expr);
+            if(require_semicolon && stmt->kind != STMT_BLOCK)
+                parser_consume(ctx, TOKEN_SEMICOLON, "expect `;` after expression statement");
+        }
+    }
+
+    return stmt;
+}
+
 static void parse_require(struct parser_context* ctx, struct ast_section* section) {
     parser_consume(ctx, TOKEN_REQUIRE, "expect `require`");
     
@@ -161,14 +189,100 @@ static void parse_global_decl(struct parser_context* ctx, struct ast_section* se
 
         parser_consume(ctx, TOKEN_EQ, "expect `=`");
 
-        ast_generic_decl_set_expr(decl, parse_expression(ctx));
+        struct ast_generic_expr* value = parse_expression(ctx);
+        if(ast_generic_decl_type(decl) == TYPE_NOT_FOUND)
+            ast_generic_decl_set_type(decl, value->type);
+        else if(ast_generic_decl_type(decl) != value->type) {
+            struct ast_typecast_expr* cast = malloc(sizeof(struct ast_typecast_expr));
+            ast_typecast_init(cast, value->loc, ast_generic_decl_type(decl), value);
+            ast_generic_decl_set_expr(decl, AST_AS_GENERIC_EXPR(cast));
+        }
+        else
+            ast_generic_decl_set_expr(decl, value);
+
+        if(ctx->cur_tok.kind == TOKEN_SEMICOLON)
+            parser_advance(ctx);
+
+        ptr_list_add(&section->declarations, (const void*) decl);
     }
 
     parser_advance(ctx);
 }
 
-static void parse_function_decl(struct parser_context* ctx, struct ast_section* section) {
+static struct ast_param* parse_function_param(struct parser_context* ctx) {
+    struct ast_param* param = malloc(sizeof(struct ast_param));
+    ast_param_init(param, &ctx->cur_tok.loc, ctx->cur_tok.val.string);
+    
+    parser_consume(ctx, TOKEN_IDENT, "expect identifier for function parameter");
+    
+    if(ctx->cur_tok.kind == TOKEN_OF) {
+        parser_advance(ctx);
+        param->type = parse_type(ctx);
+    }
 
+    if(ctx->cur_tok.kind == TOKEN_EQ) {
+        parser_advance(ctx);
+        param->default_value = parse_expression(ctx);
+
+        if(!param->type) 
+            param->type = param->default_value->type;
+        else if(param->type != param->default_value->type) {
+            struct ast_typecast_expr* cast = malloc(sizeof(struct ast_typecast_expr));
+            ast_typecast_init(cast, param->default_value->loc, param->type, param->default_value);
+            param->default_value = AST_AS_GENERIC_EXPR(cast);
+        }
+    }
+
+    if(!param->type && !param->default_value)
+        print_compiler_error(ctx->ctx, ERROR_DEFAULT, &param->loc, "function parameter `%s` has neither an explicit type nor a default value", param->ident);
+
+    return param;
+}
+
+static void parse_function_decl(struct parser_context* ctx, struct ast_section* section) {
+    bool tailcall_recursive = ctx->cur_tok.kind == TOKEN_AND;
+    parser_advance(ctx);
+
+    struct ast_function_decl* decl = malloc(sizeof(struct ast_function_decl));
+    ast_function_decl_init(decl, &ctx->cur_tok.loc, ctx->cur_tok.val.string, tailcall_recursive);
+
+    parser_consume(ctx, TOKEN_IDENT, tailcall_recursive ? "expect identifier afgter `and`" : "expect identifier after `let`");
+
+    // parse argument list
+    if(ctx->cur_tok.kind == TOKEN_LPAREN) {
+        parser_advance(ctx);
+
+        while(ctx->cur_tok.kind != TOKEN_RPAREN) {
+            struct ast_param* param = parse_function_param(ctx);
+            if(decl->params->size != decl->required_params && !param->default_value)
+                print_compiler_error(ctx->ctx, ERROR_DEFAULT, &param->loc, "function parameter `%s` without default value appears after paramers with default value", param->ident);
+            
+            ast_function_decl_add_param(decl, param);
+
+            if(ctx->cur_tok.kind != TOKEN_RPAREN)
+                parser_consume(ctx, TOKEN_COMMA, "expect `,` between function parameters");
+        }
+
+        parser_consume(ctx, TOKEN_RPAREN, "expect `)` after function parameters");
+    }
+
+    switch(ctx->cur_tok.kind) {
+    case TOKEN_BE:
+        parser_advance(ctx);
+        ast_function_decl_set_stmt(decl, parse_statement(ctx, true));
+        break;
+    case TOKEN_EQ:
+        parser_advance(ctx);
+        ast_generic_decl_set_expr(AST_AS_GENERIC_DECL(decl), parse_expression(ctx));
+        if(ctx->cur_tok.kind == TOKEN_SEMICOLON)
+            parser_advance(ctx);
+        break;
+    default:
+        print_compiler_error(ctx->ctx, ERROR_FATAL, &ctx->cur_tok.loc, "unexpected token, expect either `=` or `be` after `%s` declaration", tailcall_recursive ? "and" : "let");
+        break;
+    }
+
+    ptr_list_add(&section->declarations, (const void*) decl);
 }
 
 static void parse_section(struct parser_context* ctx) {
