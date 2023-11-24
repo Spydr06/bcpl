@@ -21,7 +21,7 @@ struct parser_context {
     struct ast_program* program;
 };
 
-static struct ast_generic_stmt* parse_statement(struct parser_context* ctx, bool require_semicolon);
+static struct ast_generic_stmt* parse_statement(struct parser_context* ctx);
 
 inline static void parser_advance(struct parser_context* ctx) {
     ctx->last_tok = ctx->cur_tok;
@@ -105,7 +105,7 @@ static struct ast_generic_expr* parse_expression(struct parser_context* ctx) {
         struct ast_valof_expr* outer = ctx->current_valof;
         ctx->current_valof = AST_CAST_EXPR(expr, valof);
 
-        AST_CAST_EXPR(expr, valof)->body = parse_statement(ctx, false);
+        AST_CAST_EXPR(expr, valof)->body = parse_statement(ctx);
 
         ctx->current_valof = outer;
     } break;
@@ -116,10 +116,10 @@ static struct ast_generic_expr* parse_expression(struct parser_context* ctx) {
     return expr;
 }
 
-#define SKIP_SEMICOLON() if(require_semicolon) \
-    parser_consume(ctx, TOKEN_SEMICOLON, "expect `;` after expression statement")
+#define SKIP_SEMICOLON() if(ctx->cur_tok.kind == TOKEN_SEMICOLON) \
+    parser_advance(ctx);
 
-static struct ast_generic_stmt* parse_statement(struct parser_context* ctx, bool require_semicolon) {
+static struct ast_generic_stmt* parse_statement(struct parser_context* ctx) {
     struct ast_generic_stmt* stmt;
     
     switch(ctx->cur_tok.kind) {
@@ -130,7 +130,7 @@ static struct ast_generic_stmt* parse_statement(struct parser_context* ctx, bool
         parser_advance(ctx);
 
         while(ctx->cur_tok.kind != TOKEN_RBRACE)
-            parse_statement(ctx, true);
+            parse_statement(ctx);
         
         parser_advance(ctx);
         break;
@@ -311,7 +311,7 @@ static void parse_function_decl(struct parser_context* ctx, struct ast_section* 
     switch(ctx->cur_tok.kind) {
     case TOKEN_BE:
         parser_advance(ctx);
-        ast_function_decl_set_stmt(decl, parse_statement(ctx, true));
+        ast_function_decl_set_stmt(decl, parse_statement(ctx));
         break;
     case TOKEN_EQ:
         parser_advance(ctx);
