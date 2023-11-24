@@ -13,12 +13,10 @@
 #include "token.h"
 #include "util.h"
 
-#define DEFAULT_OUTPUT_FILE "a.out"
-
 static const struct option cmdline_options[] = {
-    {"help", 0, NULL, 'h'},
-    {"shared", 0, NULL, 0},
-    {NULL, 0, NULL, 0}
+    {"help",   0, NULL, 'h'},
+    {"shared", 0, NULL, 0  },
+    {NULL,     0, NULL, 0  }
 };
 
 static void help(const char* progname) 
@@ -54,10 +52,7 @@ static const char* get_fileext(const char* filename)
 
 int main(int argc, char** argv) {
     struct context ctx;
-    ctx.output_file = DEFAULT_OUTPUT_FILE;
-    ctx.progname = argv[0];
-    ctx.tags = string_list_init();
-    ctx.build_kind = BUILD_EXEC;
+    context_init(&ctx);
     ast_program_init(&ctx.ast);
 
     int ch, long_index;

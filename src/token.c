@@ -5,7 +5,6 @@
 #include <inttypes.h>
 #include <stdbool.h>
 #include <stdint.h>
-#include <stdarg.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -625,82 +624,6 @@ repeat:
         fseek(file->fd, start, SEEK_SET);
         KW_TOK(tok, file, DO);
     }
-}
-
-void print_err_for(const struct context* ctx, const struct location* loc, const char* error, ...)
-{
-    size_t fd_pos = ftell(loc->file->fd);
-    size_t line_start = loc->offset + 1;
-
-    while(line_start > 0) {
-        fseek(loc->file->fd, --line_start - 1, SEEK_SET);
-        char c;
-        if((c = fgetc(loc->file->fd)) == '\n')
-            break;
-    }
-
-    size_t line_end = loc->offset + loc->width;
-    fseek(loc->file->fd, line_end, SEEK_SET);
-    char c;
-    while((c = fgetc(loc->file->fd)) != '\n' && c != EOF)
-        line_end++;
-
-    fseek(loc->file->fd, line_start, SEEK_SET);
-    char* line_str = calloc(line_end - line_start, sizeof(char));
-    fread(line_str, line_end - line_start, sizeof(char), loc->file->fd);
-
-    size_t column = loc->offset - line_start;
-
-    fprintf(stderr, "\033[1m%s:%u:%zu: \033[31merror:\033[0m ", loc->file->path, loc->line, column);
-
-    va_list ap;
-    va_start(ap, error); 
-    vfprintf(stderr, error, ap);
-    va_end(ap);
-
-    fprintf(stderr, "\n\033[1m\033[90m %4d \033[22m|\033[0m ", loc->line);
-    fwrite(line_str, sizeof(char), column, stderr);
-    fprintf(stderr, "\033[33m\033[1m");
-    fwrite(line_str + column, sizeof(char), loc->width, stderr);
-    fprintf(stderr, "\033[0m%s\n", line_str + column + loc->width);
-
-    fprintf(stderr, "\033[90m      |\033[0m %*s\033[33m", (int) column, "");
-    for(size_t i = 0; i < MAX(loc->width, 1); i++)
-        fputc('^', stderr);
-    fprintf(stderr, "\033[90m <- here\033[0m\n\n"); 
-
-    fseek(loc->file->fd, fd_pos, SEEK_SET);
-}
-
-void lex_error(const char* filename, FILE* fd, uint32_t line, const char* error)
-{
-    size_t pos = ftell(fd);
-    size_t line_start = pos;
-
-    while(line_start > 0) {
-        fseek(fd, --line_start - 1, SEEK_SET);
-        char c;
-        if((c = fgetc(fd)) == '\n')
-            break;
-    }
-
-    size_t line_end = pos;
-    fseek(fd, pos, SEEK_SET);
-    char c;
-    while((c = fgetc(fd)) != '\n' && c != EOF)
-        line_end++;
-
-    fseek(fd, line_start, SEEK_SET);
-    char* line_str = calloc(line_end - line_start, sizeof(char));
-    fread(line_str, line_end - line_start, sizeof(char), fd);
-
-    size_t column = pos - line_start;
-
-    fprintf(stderr, "\033[1m%s:%u:%zu: \033[31merror:\033[0m %s\n", filename, line, column, error);
-    fprintf(stderr, " %4d | %s\n", line, line_str);
-    fprintf(stderr, "      | %*s\033[35m^~here\033[0m\n", (int) column - 1, "");
-    
-    exit(EXIT_FAILURE);
 }
 
 static const char* const token_kind_strs[] = {

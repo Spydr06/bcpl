@@ -5,6 +5,8 @@
 #include "util.h"
 #include <stdio.h>
 
+#define DEFAULT_OUTPUT_FILE "a.out"
+
 enum build_kind {
     BUILD_EXEC,
     BUILD_SHARED_OBJECT,
@@ -22,6 +24,23 @@ struct context {
 
     struct ast_program ast;
 };
+
+void context_init(struct context* ctx);
+
+enum error_severity {
+    ERROR_INFO,
+    ERROR_WARNING,
+    ERROR_DEFAULT,
+    ERROR_FATAL,
+};
+
+bool error_severity_exit(enum error_severity severity);
+
+void 
+#ifdef __GLIBC__ 
+    __attribute__((format(printf, 4, 5)))
+#endif 
+    print_compiler_error(const struct context* ctx, enum error_severity severity, const struct location* loc, const char* error, ...);
 
 #endif /* BCPLC_CONTEXT_H */
 

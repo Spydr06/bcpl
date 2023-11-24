@@ -1,9 +1,27 @@
 #ifndef BCPLC_UTIL_H
 #define BCPLC_UTIL_H
 
+#include <stdio.h>
+#include <stdint.h>
+
+struct source_file {
+    FILE* fd;
+    const char* path;
+    size_t line;
+};
+
+struct location {
+    struct source_file* file;
+    size_t offset;
+    uint32_t line;
+    uint16_t width;
+};
+
 //
 // Numeric functions
 //
+
+#define AND_THEN(expr) && ((expr), 1)
 
 #define MIN(a, b) ((a) < (b) ? (a) : (b))
 #define MAX(a, b) ((a) > (b) ? (a) : (b))

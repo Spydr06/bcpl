@@ -1,11 +1,38 @@
 #include "ast.h"
 #include "util.h"
 
+#include <stddef.h>
 #include <stdlib.h>
 #include <string.h>
+#include <assert.h>
 
-void ast_program_init(struct ast_program* program)
-{
+const char* const primitive_types[BUILTIN_PRIMITIVE_TYPE_END + 1] = {
+    [TYPE_UINT8] = "UInt8",
+    "UInt16",
+    "UInt",
+    "UInt64",
+    
+    "Int8",
+    "Int16",
+    "Int",
+    "Int64",
+
+    "Float",
+    "Float64",
+
+    "Bool",
+    "Char",
+    "Unit"
+};
+
+void ast_section_init(struct ast_section* section, const struct location* loc) {
+    section->loc = *loc;
+    section->ident = NULL;
+    section->required = string_list_init();
+    section->declarations = ptr_list_init();
+}
+
+void ast_program_init(struct ast_program* program) {
     memset(program, 0, sizeof(struct ast_program));
 
     program->sections = ptr_list_init();
@@ -16,5 +43,161 @@ void ast_program_init(struct ast_program* program)
         builtin->kind = i;
         ptr_list_add(&program->types, (const void*) builtin);
     }
+}
+
+const struct ast_generic_type* ast_lookup_type(const struct ast_program* program, ast_type_index_t type_index) {
+    if(!type_index)
+        return NULL;
+    return program->types->data[type_index - 1];
+}
+
+ast_type_index_t ast_builtin_type(const struct ast_program* program, enum ast_type_kind builtin_kind) {
+    if(builtin_kind < BUILTIN_PRIMITIVE_TYPE_START || builtin_kind > BUILTIN_PRIMITIVE_TYPE_END)
+        return 0;
+
+    for(size_t i = 0; i < program->types->size; i++)
+        if(AST_AS_GENERIC_TYPE(program->types->data[i])->kind == builtin_kind)
+            return (ast_type_index_t) i + 1;
+    
+    assert(false);
+}
+
+void ast_true_init(struct ast_generic_expr* expr, struct location* loc) {
+    memset(expr, 0, sizeof(struct ast_generic_expr));
+
+    expr->kind = EXPR_TRUE;
+    expr->loc = *loc;
+    expr->kind = PRIMITIVE_TYPE_TO_INDEX(TYPE_BOOL);
+}
+
+void ast_false_init(struct ast_generic_expr* expr, struct location* loc) {
+    memset(expr, 0, sizeof(struct ast_generic_expr));
+
+    expr->kind = EXPR_FALSE;
+    expr->loc = *loc;
+    expr->kind = PRIMITIVE_TYPE_TO_INDEX(TYPE_BOOL);
+}
+
+void ast_intlit_init(struct ast_intlit_expr *lit, struct location *loc, uint64_t value) {
+    memset(lit, 0, sizeof(struct ast_intlit_expr));
+
+    lit->kind = EXPR_INTLIT;
+    lit->loc = *loc;
+    lit->value = value;
+    lit->kind = PRIMITIVE_TYPE_TO_INDEX(value > INT64_MAX ? TYPE_UINT64 : value > INT32_MAX ? TYPE_INT64 : TYPE_INT32); 
+}
+
+void ast_floatlit_init(struct ast_floatlit_expr *lit, struct location *loc, double value) {
+    memset(lit, 0, sizeof(struct ast_floatlit_expr));
+
+    lit->kind = EXPR_FLOATLIT;
+    lit->loc = *loc;
+    lit->value = value;
+    lit->kind = PRIMITIVE_TYPE_TO_INDEX(TYPE_FLOAT64);
+}
+
+void ast_charlit_init(struct ast_charlit_expr *lit, struct location *loc, bool unicode, wchar_t value) {
+    memset(lit, 0, sizeof(struct ast_charlit_expr));
+
+    lit->kind = EXPR_CHARLIT;
+    lit->loc = *loc;
+    lit->unicode = unicode;
+    lit->value = value;
+    
+    lit->kind = PRIMITIVE_TYPE_TO_INDEX(unicode ? TYPE_UINT16 : TYPE_CHAR);
+}
+
+void ast_stringlit_init(struct ast_stringlit_expr *lit, struct location *loc, const char *value) {
+    memset(lit, 0, sizeof(struct ast_stringlit_expr));
+
+    lit->kind = EXPR_STRINGLIT;
+    lit->loc = *loc;
+    lit->value = value;
+    lit->length = strlen(value);
+
+    // TODO: lit->kind
+}
+
+void ast_typecast_init(struct ast_typecast_expr* typecast, struct location* loc, ast_type_index_t result_type, struct ast_generic_expr* expr) {
+    memset(typecast, 0, sizeof(struct ast_typecast_expr));
+
+    typecast->kind = EXPR_TYPECAST;
+    typecast->loc = *loc;
+    typecast->result_type = result_type;
+    typecast->expr = expr;
+}
+
+ast_type_index_t ast_generic_decl_type(struct ast_generic_decl* decl) {
+    switch(decl->kind) {
+    case DECL_GLOBAL:
+        return AST_CAST_DECL(decl, global)->type;
+    case DECL_STATIC:
+        return AST_CAST_DECL(decl, static)->type;
+    case DECL_MANIFEST:
+        return AST_CAST_DECL(decl, manifest)->type;
+    default:
+        assert(false);
+    }
+}
+
+void ast_generic_decl_set_type(struct ast_generic_decl* decl, ast_type_index_t type_index) {
+    switch(decl->kind) {
+    case DECL_GLOBAL:
+        AST_CAST_DECL(decl, global)->type = type_index;
+        break;
+    case DECL_STATIC:
+        AST_CAST_DECL(decl, static)->type = type_index;
+        break;
+    case DECL_MANIFEST:
+        AST_CAST_DECL(decl, manifest)->type = type_index;
+        break;
+    default:
+        assert(false);
+    }
+}
+
+void ast_generic_decl_set_expr(struct ast_generic_decl* decl, struct ast_generic_expr* expr) {
+    switch(decl->kind) {
+    case DECL_GLOBAL:
+        AST_CAST_DECL(decl, global)->expr = expr;
+        break;
+    case DECL_STATIC:
+        AST_CAST_DECL(decl, static)->expr = expr;
+        break;
+    case DECL_MANIFEST:
+        AST_CAST_DECL(decl, manifest)->expr = expr;
+        break;
+    case DECL_FUNCTION:
+        AST_CAST_DECL(decl, function)->body_is_stmt = false;
+        AST_CAST_DECL(decl, function)->body.expr = expr;
+        break;
+    default:
+        assert(false);
+    }
+}
+
+void ast_global_decl_init(struct ast_global_decl* decl, const struct location* loc, const char* ident) {
+    memset(decl, 0, sizeof(struct ast_global_decl));
+
+    decl->kind = DECL_GLOBAL;
+    decl->loc = *loc;
+    decl->is_public = true;
+    decl->ident = ident;
+}
+
+void ast_manifest_decl_init(struct ast_manifest_decl *decl, const struct location *loc, const char* ident) {
+    memset(decl, 0, sizeof(struct ast_manifest_decl));
+
+    decl->kind = DECL_MANIFEST;
+    decl->loc = *loc;
+    decl->ident = ident;
+}
+
+void ast_static_decl_init(struct ast_static_decl* decl, const struct location* loc, const char* ident) {
+    memset(decl, 0, sizeof(struct ast_static_decl));
+
+    decl->kind = DECL_STATIC;
+    decl->loc = *loc;
+    decl->ident = ident;
 }
 
