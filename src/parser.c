@@ -21,7 +21,16 @@ struct parser_context {
     struct ast_program* program;
 };
 
+enum operator_precedence {
+    PREC_LOWEST,
+
+    PREC_CALL,
+
+    PREC_HIGHEST
+};
+
 static struct ast_generic_stmt* parse_statement(struct parser_context* ctx);
+static struct ast_generic_expr* parse_expression(struct parser_context* ctx, enum operator_precedence precedence, enum token_kind end);
 
 inline static void parser_advance(struct parser_context* ctx) {
     ctx->last_tok = ctx->cur_tok;
@@ -64,7 +73,24 @@ static ast_type_index_t parse_type(struct parser_context* ctx) {
     }
 }
 
-static struct ast_generic_expr* parse_expression(struct parser_context* ctx) {
+static struct ast_funccall_expr* parse_function_call(struct parser_context* ctx, struct ast_generic_expr* callee) {
+    struct ast_funccall_expr* call = malloc(sizeof(struct ast_funccall_expr));
+    ast_funccall_init(call, &ctx->cur_tok.loc, callee);
+    parser_consume(ctx, TOKEN_LPAREN, "expect `(` for function call");
+
+    while(ctx->cur_tok.kind != TOKEN_RPAREN) {
+        ptr_list_add(&call->params, parse_expression(ctx, PREC_LOWEST, TOKEN_COMMA)); 
+
+        if(ctx->cur_tok.kind != TOKEN_RPAREN)
+            parser_consume(ctx, TOKEN_COMMA, "expect `,` between function call parameters");
+    }
+
+    parser_advance(ctx);
+
+    return call;
+}
+
+static struct ast_generic_expr* parse_prefix_expression(struct parser_context* ctx) {
     struct ast_generic_expr* expr = NULL;
     switch(ctx->cur_tok.kind) {
     case TOKEN_INTEGER:
@@ -109,8 +135,46 @@ static struct ast_generic_expr* parse_expression(struct parser_context* ctx) {
 
         ctx->current_valof = outer;
     } break;
+    case TOKEN_IDENT:
+        expr = malloc(sizeof(struct ast_ident_expr));
+        ast_ident_expr_init(AST_CAST_EXPR(expr, ident), &ctx->cur_tok.loc, ctx->cur_tok.val.string);
+        parser_advance(ctx);
+        break;
     default:
         print_compiler_error(ctx->ctx, ERROR_FATAL, &ctx->cur_tok.loc, "unexpected token, expect expression");
+    }
+    
+    return expr;
+}
+
+static struct ast_generic_expr* parse_infix_expression(struct parser_context* ctx, struct ast_generic_expr* left) {
+    struct ast_generic_expr* expr = NULL;
+
+    switch(ctx->cur_tok.kind) {
+    case TOKEN_LPAREN:
+        expr = AST_AS_GENERIC_EXPR(parse_function_call(ctx, left));
+        break;
+    default:
+        print_compiler_error(ctx->ctx, ERROR_FATAL, &ctx->cur_tok.loc, "unexpected token, expect infix operator");
+    }
+
+    return expr;
+}
+
+static enum operator_precedence get_operator_precedence(enum token_kind kind) {
+    switch(kind) {
+    case TOKEN_LPAREN:
+        return PREC_CALL;
+    default:
+        return PREC_LOWEST;
+    }
+}
+
+static struct ast_generic_expr* parse_expression(struct parser_context* ctx, enum operator_precedence precedence, enum token_kind end) {
+    struct ast_generic_expr* expr = parse_prefix_expression(ctx);
+
+    while(ctx->cur_tok.kind != end && precedence < get_operator_precedence(ctx->cur_tok.kind)) {
+        expr = parse_infix_expression(ctx, expr);
     }
 
     return expr;
@@ -130,7 +194,7 @@ static struct ast_generic_stmt* parse_statement(struct parser_context* ctx) {
         parser_advance(ctx);
 
         while(ctx->cur_tok.kind != TOKEN_RBRACE)
-            parse_statement(ctx);
+            ptr_list_add(&AST_CAST_STMT(stmt, block)->stmts, parse_statement(ctx));
         
         parser_advance(ctx);
         break;
@@ -140,7 +204,7 @@ static struct ast_generic_stmt* parse_statement(struct parser_context* ctx) {
         
         parser_advance(ctx);
 
-        AST_CAST_STMT(stmt, resultis)->expr = parse_expression(ctx);
+        AST_CAST_STMT(stmt, resultis)->expr = parse_expression(ctx, PREC_LOWEST, TOKEN_SEMICOLON);
         SKIP_SEMICOLON();
 
         if(!ctx->current_valof) {
@@ -159,7 +223,7 @@ static struct ast_generic_stmt* parse_statement(struct parser_context* ctx) {
     default: {
             stmt = malloc(sizeof(struct ast_expr_stmt));
 
-            struct ast_generic_expr* expr = parse_expression(ctx);
+            struct ast_generic_expr* expr = parse_expression(ctx, PREC_LOWEST, TOKEN_SEMICOLON);
             ast_expr_stmt_init(AST_CAST_STMT(stmt, expr), &expr->loc, expr);
             SKIP_SEMICOLON();
         }
@@ -231,10 +295,11 @@ static void parse_global_decl(struct parser_context* ctx, struct ast_section* se
 
         parser_consume(ctx, TOKEN_EQ, "expect `=`");
 
-        struct ast_generic_expr* value = parse_expression(ctx);
+        struct ast_generic_expr* value = parse_expression(ctx, PREC_LOWEST, TOKEN_SEMICOLON);
         if(ast_generic_decl_type(decl) == TYPE_NOT_FOUND)
             ast_generic_decl_set_type(decl, value->type);
-        else if(ast_generic_decl_type(decl) != value->type) {
+        
+        if(ast_generic_decl_type(decl) != value->type) {
             struct ast_typecast_expr* cast = malloc(sizeof(struct ast_typecast_expr));
             ast_typecast_init(cast, value->loc, ast_generic_decl_type(decl), value);
             ast_generic_decl_set_expr(decl, AST_AS_GENERIC_EXPR(cast));
@@ -264,7 +329,7 @@ static struct ast_param* parse_function_param(struct parser_context* ctx) {
 
     if(ctx->cur_tok.kind == TOKEN_EQ) {
         parser_advance(ctx);
-        param->default_value = parse_expression(ctx);
+        param->default_value = parse_expression(ctx, PREC_LOWEST, TOKEN_COMMA);
 
         if(!param->type) 
             param->type = param->default_value->type;
@@ -315,7 +380,7 @@ static void parse_function_decl(struct parser_context* ctx, struct ast_section* 
         break;
     case TOKEN_EQ:
         parser_advance(ctx);
-        ast_generic_decl_set_expr(AST_AS_GENERIC_DECL(decl), parse_expression(ctx));
+        ast_generic_decl_set_expr(AST_AS_GENERIC_DECL(decl), parse_expression(ctx, PREC_LOWEST, TOKEN_SEMICOLON));
         if(ctx->cur_tok.kind == TOKEN_SEMICOLON)
             parser_advance(ctx);
         break;

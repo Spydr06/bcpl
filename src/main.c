@@ -9,6 +9,7 @@
 
 #include "ast.h"
 #include "context.h"
+#include "debug.h"
 #include "parser.h"
 #include "token.h"
 #include "util.h"
@@ -113,8 +114,8 @@ int main(int argc, char** argv) {
             fatal_error(argv[0], "`%s`: unrecognized file extension `%s`", input_file, fileext);
     }
 
-    printf("%u\n", ctx.tags->size);
- 
+    dbg_print_ast_program(&ctx.ast);
+
     return 0;
 }
 

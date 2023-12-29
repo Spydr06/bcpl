@@ -7,7 +7,7 @@
 #include <stdint.h>
 #include <wchar.h>
 
-#pragma pack(8)
+#define AST_STRUCT __attribute__((packed, aligned(8)))
 
 //
 // Pre-declarations
@@ -21,7 +21,7 @@ typedef struct ast_generic_type ast_generic_type_t;
 // Sections
 //
 
-struct ast_section {
+struct AST_STRUCT ast_section {
     struct location loc;
     const char* ident;
 
@@ -71,8 +71,9 @@ enum ast_type_kind {
     // TYPE_...
 };
 
-#define AST_TYPE_HDR(_kind) \
-    enum ast_type_kind _kind
+#define AST_TYPE_HDR(_kind, _size) \
+    enum ast_type_kind _kind;       \
+    uint32_t _size
 
 #define AST_TYPE_EXPR(_generic, _type) \
     ((struct ast_##_type##_type*) ((struct generic_type*) (_generic)))
@@ -80,16 +81,16 @@ enum ast_type_kind {
 #define AST_AS_GENERIC_TYPE(_expr) \
     ((struct ast_generic_type*) (_expr))
 
-struct ast_generic_type {
-    AST_TYPE_HDR(kind);
+struct AST_STRUCT ast_generic_type {
+    AST_TYPE_HDR(kind, size);
 };
 
-struct ast_builtin_type {
-    AST_TYPE_HDR(kind);
+struct AST_STRUCT ast_builtin_type {
+    AST_TYPE_HDR(kind, size);
 };
 
-struct ast_pointer_type {
-    AST_TYPE_HDR(kind);
+struct AST_STRUCT ast_pointer_type {
+    AST_TYPE_HDR(kind, size);
 
     ast_generic_type_t* inner;
 };
@@ -102,7 +103,7 @@ extern const char* const primitive_types[BUILTIN_PRIMITIVE_TYPE_END + 1];
 // Program
 //
 
-struct ast_program {
+struct AST_STRUCT ast_program {
     struct ptr_list* sections;
     struct ptr_list* types;
 };
@@ -124,8 +125,10 @@ enum ast_expr_kind {
     EXPR_TRUE,
     EXPR_FALSE,
     
+    EXPR_IDENT,
     EXPR_TYPECAST,
     EXPR_VALOF,
+    EXPR_FUNCCALL,
 };
 
 #define AST_EXPR_HDR(_kind, _loc, _type) \
@@ -134,34 +137,34 @@ enum ast_expr_kind {
     ast_type_index_t _type               \
 
 #define AST_CAST_EXPR(_generic, _type) \
-    ((struct ast_##_type##_expr*) ((struct generic_expr*) (_generic)))
+    ((struct ast_##_type##_expr*) ((struct ast_generic_expr*) (_generic)))
 
 #define AST_AS_GENERIC_EXPR(_expr) \
     ((struct ast_generic_expr*) (_expr))
 
-struct ast_generic_expr {
+struct AST_STRUCT ast_generic_expr {
     AST_EXPR_HDR(kind, loc, type); 
 };
 
 void ast_true_init(struct ast_generic_expr* expr, struct location* loc);
 void ast_false_init(struct ast_generic_expr* expr, struct location* loc);
 
-struct ast_intlit_expr {
-    AST_EXPR_HDR(kind, loc, type);
+struct AST_STRUCT ast_intlit_expr {
+    struct ast_generic_expr hdr;
     uint64_t value;
 };
 
 void ast_intlit_init(struct ast_intlit_expr* lit, struct location* loc, uint64_t value);
 
-struct ast_floatlit_expr {
-    AST_EXPR_HDR(kind, loc, type); 
+struct AST_STRUCT ast_floatlit_expr {
+    struct ast_generic_expr hdr;
     double value;
 };
 
 void ast_floatlit_init(struct ast_floatlit_expr* lit, struct location* loc, double value);
 
-struct ast_charlit_expr {
-    AST_EXPR_HDR(kind, loc, type);
+struct AST_STRUCT ast_charlit_expr {
+    struct ast_generic_expr hdr;
     
     bool unicode;
     wchar_t value;
@@ -169,8 +172,8 @@ struct ast_charlit_expr {
 
 void ast_charlit_init(struct ast_charlit_expr* lit, struct location* loc, bool unicode, wchar_t value);
 
-struct ast_stringlit_expr {
-    AST_EXPR_HDR(kind, loc, type);
+struct AST_STRUCT ast_stringlit_expr {
+    struct ast_generic_expr hdr;
 
     size_t length;
     const char* value;
@@ -178,20 +181,37 @@ struct ast_stringlit_expr {
 
 void ast_stringlit_init(struct ast_stringlit_expr* lit, struct location* loc, const char* value);
 
-struct ast_typecast_expr {
-    AST_EXPR_HDR(kind, loc, result_type);
+struct AST_STRUCT ast_typecast_expr {
+    struct ast_generic_expr hdr;
 
     struct ast_generic_expr* expr;
 };
 
 void ast_typecast_init(struct ast_typecast_expr* typecast, struct location loc, ast_type_index_t result_type, struct ast_generic_expr* expr);
 
-struct ast_valof_expr {
-    AST_EXPR_HDR(kind, loc, type);
+struct AST_STRUCT ast_valof_expr {
+    struct ast_generic_expr hdr;
     ast_generic_stmt_t* body;
 };
 
 void ast_valof_init(struct ast_valof_expr* valof, struct location* loc);
+
+struct AST_STRUCT ast_ident_expr {
+    struct ast_generic_expr hdr;
+
+    const char* ident;
+};
+
+void ast_ident_expr_init(struct ast_ident_expr* expr, const struct location* loc, const char* ident);
+
+struct AST_STRUCT ast_funccall_expr {
+    struct ast_generic_expr hdr;
+
+    struct ast_generic_expr* callee;
+    struct ptr_list* params;
+};
+
+void ast_funccall_init(struct ast_funccall_expr* call, const struct location* loc, struct ast_generic_expr* callee);
 
 #undef AST_EXPR_HDR
 
@@ -215,11 +235,11 @@ enum ast_stmt_kind {
 #define AST_AS_GENERIC_STMT(_stmt) \
     ((struct generic_stmt*) (_stmt))
 
-struct ast_generic_stmt {
+struct AST_STRUCT ast_generic_stmt {
     AST_STMT_HDR(kind, loc);
 };
 
-struct ast_expr_stmt {
+struct AST_STRUCT ast_expr_stmt {
     AST_STMT_HDR(kind, loc);
 
     struct ast_generic_expr* expr;
@@ -227,7 +247,7 @@ struct ast_expr_stmt {
 
 void ast_expr_stmt_init(struct ast_expr_stmt* stmt, const struct location* loc, struct ast_generic_expr* expr);
 
-struct ast_block_stmt {
+struct AST_STRUCT ast_block_stmt {
     AST_STMT_HDR(kind, loc);
 
     struct ptr_list* stmts;
@@ -236,7 +256,7 @@ struct ast_block_stmt {
 void ast_block_stmt_init(struct ast_block_stmt* block, const struct location* loc);
 void ast_block_stmt_add(struct ast_block_stmt* block, struct ast_generic_stmt* stmt);
 
-struct ast_resultis_stmt {
+struct AST_STRUCT ast_resultis_stmt {
     AST_STMT_HDR(kind, loc);
 
     struct ast_generic_expr* expr;
@@ -269,7 +289,7 @@ enum ast_decl_kind {
 #define AST_AS_GENERIC_DECL(_decl) \
     ((struct ast_generic_decl*) (_decl))
 
-struct ast_generic_decl {
+struct AST_STRUCT ast_generic_decl {
    AST_DECL_HDR(kind, loc, ident, is_public);
 };
 
@@ -278,7 +298,7 @@ void ast_generic_decl_set_type(struct ast_generic_decl* decl, ast_type_index_t t
 
 void ast_generic_decl_set_expr(struct ast_generic_decl* decl, struct ast_generic_expr* expr);
 
-struct ast_global_decl {
+struct AST_STRUCT ast_global_decl {
     AST_DECL_HDR(kind, loc, ident, is_public);
 
     ast_type_index_t type;
@@ -287,7 +307,7 @@ struct ast_global_decl {
 
 void ast_global_decl_init(struct ast_global_decl* decl, const struct location* loc, const char* ident);
 
-struct ast_manifest_decl {
+struct AST_STRUCT ast_manifest_decl {
     AST_DECL_HDR(kind, loc, ident, __is_public);
 
     ast_type_index_t type;
@@ -296,7 +316,7 @@ struct ast_manifest_decl {
 
 void ast_manifest_decl_init(struct ast_manifest_decl* decl, const struct location* loc, const char* ident);
 
-struct ast_static_decl {
+struct AST_STRUCT ast_static_decl {
     AST_DECL_HDR(kind, loc, ident, __is_public);
 
     ast_type_index_t type;
@@ -305,7 +325,7 @@ struct ast_static_decl {
 
 void ast_static_decl_init(struct ast_static_decl* decl, const struct location* loc, const char* ident);
 
-struct ast_param {
+struct AST_STRUCT ast_param {
     struct location loc;
     const char* ident;
     ast_type_index_t type;
@@ -315,7 +335,7 @@ struct ast_param {
 void ast_param_init(struct ast_param* param, const struct location* loc, const char* ident);
 bool ast_param_has_default_value(struct ast_param* param);
 
-struct ast_function_decl {
+struct AST_STRUCT ast_function_decl {
     AST_DECL_HDR(kind, loc, ident, is_public);
 
     struct ptr_list* params; // ast_param
@@ -336,8 +356,6 @@ void ast_function_decl_add_param(struct ast_function_decl* decl, struct ast_para
 void ast_function_decl_set_stmt(struct ast_function_decl* decl, struct ast_generic_stmt* stmt);
 
 #undef AST_OBJECT_HDR
-
-#pragma pack()
 
 #endif /* BCPLC_AST_H */
 

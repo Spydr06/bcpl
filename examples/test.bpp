@@ -1,0 +1,6 @@
+section Main
+
+let foo(a :: Int) = valof {
+    resultis 0;
+}
+

@@ -25,8 +25,27 @@ const char* const primitive_types[BUILTIN_PRIMITIVE_TYPE_END + 1] = {
     "Unit"
 };
 
+static const uint32_t primitive_type_sizes[BUILTIN_PRIMITIVE_TYPE_END + 1] = {
+    [TYPE_UINT8] = 1,
+    2,
+    4,
+    8,
+
+    1,
+    2,
+    4,
+    8,
+
+    4,
+    8,
+
+    1,
+    1,
+    1
+};
+
 void ast_section_init(struct ast_section* section, const struct location* loc) {
-    section->loc = *loc;
+    section->hdr.loc = *loc;
     section->ident = NULL;
     section->required = string_list_init();
     section->declarations = ptr_list_init();
@@ -41,6 +60,7 @@ void ast_program_init(struct ast_program* program) {
     for(enum ast_type_kind i = BUILTIN_PRIMITIVE_TYPE_START; i <= BUILTIN_PRIMITIVE_TYPE_END; i++) {
         struct ast_builtin_type* builtin = malloc(sizeof(struct ast_builtin_type));
         builtin->kind = i;
+        builtin->size = primitive_type_sizes[i];
         ptr_list_add(&program->types, (const void*) builtin);
     }
 }
@@ -81,57 +101,74 @@ void ast_false_init(struct ast_generic_expr* expr, struct location* loc) {
 void ast_intlit_init(struct ast_intlit_expr *lit, struct location *loc, uint64_t value) {
     memset(lit, 0, sizeof(struct ast_intlit_expr));
 
-    lit->kind = EXPR_INTLIT;
-    lit->loc = *loc;
+    lit->hdr.kind = EXPR_INTLIT;
+    lit->hdr.loc = *loc;
     lit->value = value;
-    lit->kind = PRIMITIVE_TYPE_TO_INDEX(value > INT64_MAX ? TYPE_UINT64 : value > INT32_MAX ? TYPE_INT64 : TYPE_INT32); 
+    lit->hdr.kind = PRIMITIVE_TYPE_TO_INDEX(value > INT64_MAX ? TYPE_UINT64 : value > INT32_MAX ? TYPE_INT64 : TYPE_INT32); 
 }
 
 void ast_floatlit_init(struct ast_floatlit_expr *lit, struct location *loc, double value) {
     memset(lit, 0, sizeof(struct ast_floatlit_expr));
 
-    lit->kind = EXPR_FLOATLIT;
-    lit->loc = *loc;
+    lit->hdr.kind = EXPR_FLOATLIT;
+    lit->hdr.loc = *loc;
     lit->value = value;
-    lit->kind = PRIMITIVE_TYPE_TO_INDEX(TYPE_FLOAT64);
+    lit->hdr.kind = PRIMITIVE_TYPE_TO_INDEX(TYPE_FLOAT64);
 }
 
 void ast_charlit_init(struct ast_charlit_expr *lit, struct location *loc, bool unicode, wchar_t value) {
     memset(lit, 0, sizeof(struct ast_charlit_expr));
 
-    lit->kind = EXPR_CHARLIT;
-    lit->loc = *loc;
+    lit->hdr.kind = EXPR_CHARLIT;
+    lit->hdr.loc = *loc;
     lit->unicode = unicode;
     lit->value = value;
     
-    lit->kind = PRIMITIVE_TYPE_TO_INDEX(unicode ? TYPE_UINT16 : TYPE_CHAR);
+    lit->hdr.kind = PRIMITIVE_TYPE_TO_INDEX(unicode ? TYPE_UINT16 : TYPE_CHAR);
 }
 
 void ast_stringlit_init(struct ast_stringlit_expr *lit, struct location *loc, const char *value) {
     memset(lit, 0, sizeof(struct ast_stringlit_expr));
 
-    lit->kind = EXPR_STRINGLIT;
-    lit->loc = *loc;
+    lit->hdr.kind = EXPR_STRINGLIT;
+    lit->hdr.loc = *loc;
     lit->value = value;
     lit->length = strlen(value);
 
-    // TODO: lit->kind
+    // TODO: lit->hdr.kind
 }
 
 void ast_typecast_init(struct ast_typecast_expr* typecast, struct location loc, ast_type_index_t result_type, struct ast_generic_expr* expr) {
     memset(typecast, 0, sizeof(struct ast_typecast_expr));
 
-    typecast->kind = EXPR_TYPECAST;
-    typecast->loc = loc;
-    typecast->result_type = result_type;
+    typecast->hdr.kind = EXPR_TYPECAST;
+    typecast->hdr.loc = loc;
+    typecast->hdr.type = result_type;
     typecast->expr = expr;
 }
 
 void ast_valof_init(struct ast_valof_expr* valof, struct location* loc) {
     memset(valof, 0, sizeof(struct ast_valof_expr));
 
-    valof->kind = EXPR_VALOF;
-    valof->loc = *loc;
+    valof->hdr.kind = EXPR_VALOF;
+    valof->hdr.loc = *loc;
+}
+
+void ast_ident_expr_init(struct ast_ident_expr* expr, const struct location* loc, const char* ident) {
+    memset(expr, 0, sizeof(struct ast_ident_expr));
+
+    expr->hdr.kind = EXPR_IDENT;
+    expr->hdr.loc = *loc;
+    expr->ident = ident;
+}
+
+void ast_funccall_init(struct ast_funccall_expr* call, const struct location* loc, struct ast_generic_expr* callee) {
+    memset(call, 0, sizeof(struct ast_funccall_expr));
+
+    call->hdr.kind = EXPR_FUNCCALL;
+    call->hdr.loc = *loc;
+    call->callee = callee;
+    call->params = ptr_list_init();
 }
 
 void ast_expr_stmt_init(struct ast_expr_stmt* stmt, const struct location* loc, struct ast_generic_expr* expr) {
@@ -162,7 +199,7 @@ void ast_resultis_stmt_init(struct ast_resultis_stmt* stmt, const struct locatio
 }
 
 ast_type_index_t ast_generic_decl_type(struct ast_generic_decl* decl) {
-    switch(decl->kind) {
+    switch(decl->hdr.kind) {
     case DECL_GLOBAL:
         return AST_CAST_DECL(decl, global)->type;
     case DECL_STATIC:
@@ -175,7 +212,7 @@ ast_type_index_t ast_generic_decl_type(struct ast_generic_decl* decl) {
 }
 
 void ast_generic_decl_set_type(struct ast_generic_decl* decl, ast_type_index_t type_index) {
-    switch(decl->kind) {
+    switch(decl->hdr.kind) {
     case DECL_GLOBAL:
         AST_CAST_DECL(decl, global)->type = type_index;
         break;
@@ -191,7 +228,7 @@ void ast_generic_decl_set_type(struct ast_generic_decl* decl, ast_type_index_t t
 }
 
 void ast_generic_decl_set_expr(struct ast_generic_decl* decl, struct ast_generic_expr* expr) {
-    switch(decl->kind) {
+    switch(decl->hdr.kind) {
     case DECL_GLOBAL:
         AST_CAST_DECL(decl, global)->expr = expr;
         break;
@@ -215,8 +252,8 @@ void ast_generic_decl_set_expr(struct ast_generic_decl* decl, struct ast_generic
 void ast_global_decl_init(struct ast_global_decl* decl, const struct location* loc, const char* ident) {
     memset(decl, 0, sizeof(struct ast_global_decl));
 
-    decl->kind = DECL_GLOBAL;
-    decl->loc = *loc;
+    decl->hdr.kind = DECL_GLOBAL;
+    decl->hdr.loc = *loc;
     decl->is_public = true;
     decl->ident = ident;
 }
@@ -224,23 +261,23 @@ void ast_global_decl_init(struct ast_global_decl* decl, const struct location* l
 void ast_manifest_decl_init(struct ast_manifest_decl *decl, const struct location *loc, const char* ident) {
     memset(decl, 0, sizeof(struct ast_manifest_decl));
 
-    decl->kind = DECL_MANIFEST;
-    decl->loc = *loc;
+    decl->hdr.kind = DECL_MANIFEST;
+    decl->hdr.loc = *loc;
     decl->ident = ident;
 }
 
 void ast_static_decl_init(struct ast_static_decl* decl, const struct location* loc, const char* ident) {
     memset(decl, 0, sizeof(struct ast_static_decl));
 
-    decl->kind = DECL_STATIC;
-    decl->loc = *loc;
+    decl->hdr.kind = DECL_STATIC;
+    decl->hdr.loc = *loc;
     decl->ident = ident;
 }
 
 void ast_param_init(struct ast_param* param, const struct location* loc, const char* ident) {
     memset(param, 0, sizeof(struct ast_param));
 
-    param->loc = *loc;
+    param->hdr.loc = *loc;
     param->ident = ident;
 }
 
@@ -251,8 +288,8 @@ bool ast_param_has_default_value(struct ast_param* param) {
 void ast_function_decl_init(struct ast_function_decl* decl, const struct location* loc, const char* ident, bool tailcall_recursive) {
     memset(decl, 0, sizeof(struct ast_function_decl));
 
-    decl->kind = DECL_FUNCTION;
-    decl->loc = *loc;
+    decl->hdr.kind = DECL_FUNCTION;
+    decl->hdr.loc = *loc;
     decl->ident = ident;
     decl->tailcall_recursive = tailcall_recursive;
 

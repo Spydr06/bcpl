@@ -105,7 +105,5 @@ struct token {
 
 void next_token(struct source_file* file, struct token* tok, struct token* prev, struct string_list** tags);
 
-void dbg_print_token(struct token* t);
-
 #endif
 

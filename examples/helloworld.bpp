@@ -2,5 +2,8 @@ section Main
 
 require Std
 
-let main() be writes("Hello, World")
+let main(argc :: Int, argv :: Int64 = true) be {
+    writes("Hello, World")
+    0
+}
 
