@@ -1,4 +1,6 @@
-use crate::source_file::Location;
+use std::collections::HashMap;
+
+use crate::source_file::{Location, Located};
 
 use self::{types::{TypeList, TypeIndex}, expr::Expr, stmt::Stmt};
 
@@ -9,7 +11,7 @@ pub(crate) mod stmt;
 
 #[derive(Default)]
 pub struct Program {
-    sections: Vec<Section>,
+    sections: HashMap<String, Section>,
     types: TypeList
 }
 
@@ -17,7 +19,7 @@ pub struct Section {
     loc: Location,
     ident: String,
 
-    required: Vec<String>,
+    required: Vec<Located<String>>,
 
     declarations: Vec<Box<dyn Decl>>
 }

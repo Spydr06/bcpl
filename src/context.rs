@@ -2,7 +2,7 @@ use std::collections::HashMap;
 
 use colorize::AnsiColor;
 
-use crate::{terminate, source_file::{SourceFile, SourceFileId}, token::lexer::Lexer, ast};
+use crate::{terminate, source_file::{SourceFile, SourceFileId}, token::lexer::Lexer, ast::{self, parser::Parser}};
 
 #[derive(Default)]
 pub enum BuildKind {
@@ -103,16 +103,16 @@ impl Context {
         terminate();
     }
 
-    pub fn compile(self) {
+    pub fn compile(mut self) {
         if self.source_files.is_empty() {
             self.fatal_error("no input files.");
         }
             
-        let lexers = self.source_files.values().map(|file| Lexer::from(file));
-        for mut lexer in lexers {
-            println!("{lexer:?}");
-            while let Some(token) = lexer.next() && !token.is_eof() {
-                println!("{:?}", token);
+        let parsers = self.source_files.values().map(|file| Parser::from(Lexer::from(file)));
+        for mut parser in parsers {
+            if let Err(err) = parser.parse(&mut self.ast) {
+                eprintln!("Parse Error: {err:?}");
+                eprintln!("^^^ In {:?}", (**parser).path());
             }
         }
     }

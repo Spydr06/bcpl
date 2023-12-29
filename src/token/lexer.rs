@@ -1,6 +1,7 @@
 use std::{
     str::Chars,
-    iter::Peekable
+    iter::Peekable,
+    ops::Deref
 };
 
 use crate::{source_file::{SourceFile, Location}, token::{Token, TokenKind}};
@@ -36,7 +37,7 @@ impl<'a> Lexer<'a> {
         }
     }
 
-    fn current_loc(&self) -> Location {
+    pub fn current_loc(&self) -> Location {
         Location::new(self.source_file, self.line, self.column, 1)        
     }
 
@@ -307,3 +308,12 @@ impl<'a> Iterator for Lexer<'a> {
         }
     }
 }
+
+impl<'a> Deref for Lexer<'a> {
+    type Target = &'a SourceFile;
+
+    fn deref(&self) -> &Self::Target {
+        &self.source_file
+    }
+}
+

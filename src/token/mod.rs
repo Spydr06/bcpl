@@ -8,7 +8,7 @@ pub struct Token<'a> {
     loc: Location
 }
 
-#[derive(Debug)]
+#[derive(Clone, Debug, PartialEq)]
 pub enum TokenKind<'a> {
     // Lexer Signals
     Eof,
@@ -33,7 +33,7 @@ pub enum TokenKind<'a> {
     RBracket, // `]`
 
     Semicolon, // `;`
-    Comma, // `;`
+    Comma, // `,`
     Period, // `.`
     Colon, // `:`
     Assign, // `:=`
@@ -95,6 +95,100 @@ pub enum TokenKind<'a> {
     Static,
     Mod,
     Abs
+}
+
+impl<'a> ToString for TokenKind<'a> {
+    fn to_string(&self) -> String {
+        use TokenKind as TK;
+        match self {
+            TK::Error(Some(err)) => return err.clone(),
+            TK::Atom(atom) => return format!("#{atom}"),
+            TK::IntegerLit(int) => return int.to_string(),
+            TK::StringLit(s) => return format!("\"{s}\""),
+            TK::CharLit(ch) => return format!("'{ch}'"),
+            _ => ()
+        }
+
+        match self {
+            TK::Eof => "end of file",
+            TK::Error(None) => "error",
+            
+            TK::Ident(ident) => ident,
+
+            TK::FloatLit(a, _) => a, // TODO: print correctly
+
+            TK::LParen => "(",
+            TK::RParen => ")",
+            TK::LBrace => "{",
+            TK::RBrace => "}",
+            TK::LBracket => "[",
+            TK::RBracket => "]",
+            
+            TK::Semicolon => ";",
+            TK::Comma => ",",
+            TK::Period => ".",
+            TK::Colon => ":",
+            TK::Assign => ":=",
+            TK::Condition => "->",
+            TK::QuestionMark => "?",
+            TK::Bang => "!",
+            TK::At => "@",
+            
+            TK::Plus => "+",
+            TK::Minus => "-",
+            TK::Star => "*",
+            TK::Slash => "/",
+
+            TK::Eq => "=",
+            TK::Ne => "~=",
+            TK::Gt => ">",
+            TK::Ge => ">=",
+            TK::Lt => "<",
+            TK::Le => "<=",
+
+            TK::Not => "~",
+            TK::LogAnd => "|",
+            TK::LogOr => "&",
+            TK::XOr => "^",
+            TK::LShift => "<<",
+            TK::RShift => ">>",
+
+            TK::True => "true",
+            TK::False => "false",
+            TK::Let => "let",
+            TK::And => "and",
+            TK::ValOf => "valof",
+            TK::ResultIs => "resultis",
+            TK::Return => "return",
+            TK::Finish => "finish",
+            TK::Skip => "skip",
+            TK::Repeat => "repeat",
+            TK::Break => "break",
+            TK::If => "if",
+            TK::Unless => "unless",
+            TK::While => "while",
+            TK::For => "for",
+            TK::Until => "until",
+            TK::SwitchOn => "switchon",
+            TK::Match => "match",
+            TK::Every => "every",
+            TK::Case => "case",
+            TK::Default => "default",
+            TK::Do => "do",
+            TK::To => "to",
+            TK::By => "by",
+            TK::Of => "::",
+            TK::Be => "be",
+            TK::Section => "section",
+            TK::Require => "require",
+            TK::Global => "global",
+            TK::Manifest => "manifest",
+            TK::Static => "static",
+            TK::Mod => "mod",
+            TK::Abs => "abs",
+            _ => "<unexpected>"
+        }.into()
+    }
 }
 
 impl<'a> TryFrom<char> for TokenKind<'a> {
@@ -227,5 +321,13 @@ impl<'a> Token<'a> {
             kind: TokenKind::CharLit(val),
             loc
         }
+    }
+
+    pub fn kind(&self) -> &TokenKind {
+        &self.kind
+    }
+    
+    pub fn location(&self) -> &Location {
+        &self.loc
     }
 }

@@ -41,6 +41,7 @@ pub enum TypeKind {
     Bool,
     Char,
     Unit,
+    Atom,
 
     Pointer(TypeIndex),
     Array(TypeIndex, usize),
@@ -52,7 +53,7 @@ pub enum TypeKind {
     // ...
 }
 
-const BUILTIN_TYPE_KINDS: [(TypeKind, u32); 13] = [
+const BUILTIN_TYPE_KINDS: [(TypeKind, u32); 14] = [
     (TypeKind::UInt8, 1),
     (TypeKind::UInt16, 2),
     (TypeKind::UInt32, 4),
@@ -65,7 +66,8 @@ const BUILTIN_TYPE_KINDS: [(TypeKind, u32); 13] = [
     (TypeKind::Float64, 8),
     (TypeKind::Bool, 1),
     (TypeKind::Char, 1),
-    (TypeKind::Unit, 0)
+    (TypeKind::Unit, 0),
+    (TypeKind::Atom, 4)
 ];
 
 pub struct TypeList {
