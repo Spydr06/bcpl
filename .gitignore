@@ -1,8 +1,1 @@
-.cache/
-build/
-bcpl++
-*.o
-*.out
-*.a
-vgcore.*
-compile_commands.json
+/target
