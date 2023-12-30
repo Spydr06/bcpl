@@ -24,7 +24,7 @@ impl Type {
     }
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq)]
 pub enum TypeKind {
     UInt8,
     UInt16,
@@ -42,6 +42,7 @@ pub enum TypeKind {
     Bool,
     Char,
     Unit,
+
     Atom,
 
     Pointer(TypeIndex),
@@ -71,9 +72,42 @@ const BUILTIN_TYPE_KINDS: [(TypeKind, u32); 14] = [
     (TypeKind::Atom, 4)
 ];
 
+impl TryFrom<&str> for TypeKind {
+    type Error = ();
+
+    fn try_from(value: &str) -> Result<Self, Self::Error> {
+        match value {
+            "UInt8" => Ok(Self::UInt8),
+            "UInt16" => Ok(Self::UInt16),
+            "UInt32" => Ok(Self::UInt32),
+            "UInt64" => Ok(Self::UInt64),
+            "Int8" => Ok(Self::Int8),
+            "Int16" => Ok(Self::Int16),
+            "Int32" => Ok(Self::Int32),
+            "Int64" => Ok(Self::Int64),
+            "Float32" => Ok(Self::Float32),
+            "Float64" => Ok(Self::Float64),
+            "Bool" => Ok(Self::Bool),
+            "Char" => Ok(Self::Char),
+            "Unit" => Ok(Self::Unit),
+            "Atom" => Ok(Self::Atom),
+            _ => Err(())
+        }
+    }
+}
+
 #[derive(Debug)]
 pub struct TypeList {
     types: HashMap<TypeIndex, Type>
+}
+
+impl TypeList {
+    pub fn by_ident(&self, ident: &str) -> Option<TypeIndex> {
+        let kind = TypeKind::try_from(ident).ok()?;
+        self.types.iter()
+            .find(|(_, typ)| typ.kind == kind)
+            .map(|(i, _)| *i)
+    }
 }
 
 impl Default for TypeList {

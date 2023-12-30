@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::{collections::HashMap, sync::{Arc, Mutex}};
 
 use colorize::AnsiColor;
 
@@ -64,7 +64,7 @@ pub struct Context {
 
     source_files: HashMap<SourceFileId, SourceFile>,
 
-    ast: ast::Program
+    ast: Arc<Mutex<ast::Program>>
 }
 
 impl Context {
@@ -112,17 +112,17 @@ impl Context {
         println!("{} {filepath}", "Compiling:".bold().magenta());
     }
 
-    pub fn compile(mut self) {
+    pub fn compile(self) -> Result<(), ()> {
         if self.source_files.is_empty() {
             self.fatal_error("no input files.");
         }
             
         let mut had_errors = false;
-        let parsers = self.source_files.values().map(|file| Parser::from(Lexer::from(file)));
-        for mut parser in parsers {
+        for file in self.source_files.values() {
+            let mut parser = Parser::new(Lexer::from(file), self.ast.clone());
             self.print_compiling_status((**parser).path());
         
-            if let Err(err) = parser.parse(&mut self.ast) {
+            if let Err(err) = parser.parse() {
                 self.parser_error(err);
                 had_errors = true;
             }
@@ -133,10 +133,11 @@ impl Context {
         }
 
         if had_errors {
-            terminate();
+            return Err(())
         }
 
         println!("generated ast: {:#?}", self.ast);
+        Ok(())
     }
 }
 

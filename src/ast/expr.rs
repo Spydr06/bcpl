@@ -22,7 +22,8 @@ pub enum ExprKind {
     True,
     False,
 
-    TypeCast(Box<Expr>),
+    Cast(Box<Expr>),
+    ImplicitCast(Box<Expr>),
     ValOf(Box<Stmt>), 
     FuncCall(Box<Expr>, Vec<Expr>)
 }

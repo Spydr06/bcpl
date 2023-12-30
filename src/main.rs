@@ -58,7 +58,9 @@ fn main() {
         .collect()
     );
 
-    ctx.compile();
+    if let Err(_) = ctx.compile() {
+        terminate()
+    }
 }
 
 fn usage(program_name: &str) {

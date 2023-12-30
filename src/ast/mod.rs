@@ -15,12 +15,17 @@ pub struct Program {
 }
 
 impl Program {
-    pub fn add_section(&mut self, ident: &String, loc: Location) -> &mut Section {
-        if !self.sections.contains_key(ident) {
-            self.sections.insert(ident.clone(), Section::new(ident.clone(), loc));
+    pub fn add_section(&mut self, section: Section) {
+        if !self.sections.contains_key(section.ident()) {
+            self.sections.insert(section.ident().clone(), section);
         }
+        else {
+            todo!()
+        }
+    }
 
-        self.sections.get_mut(ident).unwrap()
+    pub fn types(&self) -> &TypeList {
+        &self.types
     }
 }
 
@@ -35,7 +40,7 @@ pub struct Section {
 }
 
 impl Section {
-    fn new(ident: String, loc: Location) -> Self {
+    pub fn new(ident: String, loc: Location) -> Self {
         Self {
             loc,
             ident,
@@ -167,7 +172,17 @@ pub enum FunctionBody {
 pub struct Param {
     loc: Location,
     ident: String,
-    typ: TypeIndex,
+    typ: Option<TypeIndex>,
     default_value: Option<Expr>
 }
 
+impl Param {
+    pub fn new(loc: Location, ident: String, typ: Option<TypeIndex>, default_value: Option<Expr>) -> Self {
+        Self {
+            loc,
+            ident,
+            typ,
+            default_value
+        }
+    }
+}

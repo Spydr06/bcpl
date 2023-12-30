@@ -7,11 +7,11 @@ use crate::{
 use super::{Parser, ParseResult};
 
 impl<'a> Parser<'a> {
-    pub(super) fn parse_type(&mut self) -> ParseResult<'a, Located<TypeIndex>> {
+    pub(super) fn parse_type(&mut self) -> ParseResult<'a, Option<TypeIndex>> {
         let loc = self.current().location().clone();
         match self.current().kind() {
             TokenKind::Ident(ident) => {
-                let typ = self.type_ident(ident).with_location(loc);
+                let typ = self.type_ident(ident);
                 self.advance()?;
                 Ok(typ)
             }
@@ -19,7 +19,10 @@ impl<'a> Parser<'a> {
         }
     }
 
-    fn type_ident(&self, ident: &str) -> TypeIndex {
-        0
+    fn type_ident(&self, ident: &str) -> Option<TypeIndex> {
+        self.ast.lock()
+            .unwrap()
+            .types()
+            .by_ident(ident)
     }
 }

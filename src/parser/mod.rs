@@ -1,4 +1,4 @@
-use std::ops::Deref;
+use std::{ops::Deref, sync::{Arc, Mutex}};
 
 use crate::{
     token::{lexer::Lexer, Token, TokenKind},
@@ -9,24 +9,25 @@ use crate::{
 
 mod types;
 mod decls;
+mod expr;
 
 pub struct Parser<'a> {
     lexer: Lexer<'a>,
+    ast: Arc<Mutex<Program>>,
     warnings: Vec<Located<ParseError<'a>>>,
     current_token: Token<'a>
 }
 
-impl<'a> From<Lexer<'a>> for Parser<'a> {
-    fn from(lexer: Lexer<'a>) -> Self {
+impl<'a> Parser<'a> {
+    pub fn new(lexer: Lexer<'a>, ast: Arc<Mutex<Program>>) -> Self {
         Self {
             warnings: vec![],
             current_token: Token::eof(lexer.current_loc()),
             lexer,
+            ast
         }
     }
-}
 
-impl<'a> Parser<'a> {
     fn push_warning(&mut self, warning: Located<ParseError<'a>>) {
         self.warnings.push(warning);
     }
@@ -96,11 +97,11 @@ impl<'a> Parser<'a> {
         )
     }
 
-    pub fn parse(&mut self, ast: &mut Program) -> ParseResult<'a, ()> {
+    pub fn parse(&mut self) -> ParseResult<'a, ()> {
         self.advance()?;
         
         while !self.current_token.is_eof() {
-            self.parse_section(ast)?;
+            self.parse_section()?;
         }
 
         Ok(())

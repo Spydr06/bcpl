@@ -1,22 +1,22 @@
 use crate::{
     token::TokenKind, 
     source_file::{Location, Located, WithLocation}, 
-    ast::{Decl, Function, Program, FunctionBody, Param, IntoDecl}
+    ast::{Decl, Function, Program, FunctionBody, Param, IntoDecl, Section}
 };
 
 use super::{Parser, ParseResult, ParseError};
 
 impl<'a> Parser<'a> {
-    pub(super) fn parse_section(&mut self, ast: &mut Program) -> ParseResult<'a, ()> {
+    pub(super) fn parse_section(&mut self) -> ParseResult<'a, ()> {
         let section_loc = self.current_token.location().clone();
         self.expect(&[TokenKind::Section])?;
 
-        let section = ast.add_section(&self.expect_ident()?.into(), section_loc); 
+        let mut section = Section::new(self.expect_ident()?.into(), section_loc);
 
         let mut had_decls = false;
         loop {
             match self.current().kind() {
-                TokenKind::Eof | TokenKind::Section => return Ok(()),
+                TokenKind::Eof | TokenKind::Section => break,
                 TokenKind::Require => {
                     if had_decls {
                         self.push_warning(ParseError::RequireAfterDecl.with_location(self.current_token.location().clone()));
@@ -32,6 +32,9 @@ impl<'a> Parser<'a> {
                 }
             }
         }
+
+        self.ast.lock().unwrap().add_section(section);
+        Ok(())
     }
 
     pub(super) fn parse_require(&mut self) -> ParseResult<'a, Located<String>> {
@@ -63,9 +66,28 @@ impl<'a> Parser<'a> {
     pub(super) fn parse_function_param(&mut self) -> ParseResult<'a, Param> {
         let loc = self.current_token.location().clone();
         let ident = self.expect_ident()?;
-        self.expect(&[TokenKind::Of])?;
+        
+        let typ = if self.advance_if(&[TokenKind::Of])?.is_some() {
+            Some(self.parse_type()?)
+        }
+        else {
+            None
+        };
 
-        Err(ParseError::NotImplemented.with_location(self.current_token.location().clone()))
+        let mut value = None;
+        if self.advance_if(&[TokenKind::Eq])?.is_some() {
+            value = Some(self.parse_expr()?);
+        }
+
+        match (&typ, &value) {
+            (None, None) => return Err(
+                    ParseError::Generic("Parameter requires either a type or default value.".into())
+                        .with_location(loc)
+                ),
+            _ => ()
+        }
+
+        Ok(Param::new(loc, ident, typ.unwrap(), value))
     }
 }
 
