@@ -63,12 +63,22 @@ pub trait Decl: Debug {
     fn is_public(&self) -> bool;
 }
 
+pub trait IntoDecl: Sized {
+    fn into_decl(self) -> Box<dyn Decl>;
+}
+
 #[derive(Debug)]
 pub struct BasicDecl {
     loc: Location,
     is_public: bool,
     ident: String,
     value: Expr
+}
+
+impl IntoDecl for BasicDecl {
+    fn into_decl(self) -> Box<dyn Decl> {
+        Box::new(self)
+    }
 }
 
 impl Decl for BasicDecl {
@@ -101,7 +111,37 @@ pub struct Function {
     body: FunctionBody
 }
 
-impl Decl for Function {
+impl Function {
+    pub fn new(loc: Location, ident: String, params: Vec<Param>, return_type: TypeIndex, tailcall_recursive: bool, body: FunctionBody) -> Self {
+        Self {
+            loc,
+            is_public: true,
+            ident,
+            required_params: required_params_of(&params),
+            params,
+            return_type,
+            tailcall_recursive,
+            body
+        }
+    }
+}
+
+fn required_params_of(params: &[Param]) -> u32 {
+    if let Some((i, _)) = params.iter().enumerate().find(|(_, param)| param.default_value.is_some()) {
+        i as u32 - 1
+    }
+    else {
+        params.len() as u32
+    }
+}
+
+impl IntoDecl for Function {
+    fn into_decl(self) -> Box<dyn Decl> {
+        Box::new(self)
+    }
+}
+
+impl Decl for Function { 
     fn location(&self) -> &Location {
         &self.loc
     }
@@ -115,10 +155,12 @@ impl Decl for Function {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Default)]
 pub enum FunctionBody {
     Expr(Expr),
-    Stmt(Stmt)
+    Stmt(Stmt),
+    #[default]
+    Nothing
 }
 
 #[derive(Debug)]

@@ -3,9 +3,12 @@ use std::ops::Deref;
 use crate::{
     token::{lexer::Lexer, Token, TokenKind},
     source_file::{Location, Located, WithLocation},
-    ast::{Program, Decl},
+    ast::Program,
     error::{IntoCompilerError, CompilerError, Severity}
 };
+
+mod types;
+mod decls;
 
 pub struct Parser<'a> {
     lexer: Lexer<'a>,
@@ -36,9 +39,12 @@ impl<'a> Parser<'a> {
         &self.current_token
     }
 
-    fn advance(&mut self) -> ParseResult<'a, &Token<'a>> {
-        self.current_token = self.lexer.next()
-            .unwrap_or_else(|| Token::error(self.lexer.current_loc(), Some("could not get next token".into())));
+    fn advance(&mut self) -> ParseResult<'a, Token<'a>> {
+        let last = std::mem::replace(
+            &mut self.current_token, 
+            self.lexer.next()
+                .unwrap_or_else(|| Token::error(self.lexer.current_loc(), Some("could not get next token".into())))
+        );
 
         if let TokenKind::Error(msg) = self.current().kind() { 
             Err(
@@ -47,17 +53,25 @@ impl<'a> Parser<'a> {
             )
         }
         else {
-            Ok(self.current())
+            Ok(last)
         }
     }
 
-    fn expect(&mut self, expect: TokenKind<'a>) -> ParseResult<'a, &Token<'a>> {
-        if self.current().is_eof() {
-            Err(ParseError::UnexpectedEof(expect).with_location(self.current().location().clone()))
+    fn advance_if(&mut self, expect: &[TokenKind<'a>]) -> ParseResult<'a, Option<Token<'a>>> {
+        if expect.contains(self.current().kind()) {
+            self.advance().map(Some)
         }
-        else if self.current().kind() != &expect {
-            Err(ParseError::UnexpectedToken(self.current().kind().to_string(), expect)
-                .with_location(self.current().location().clone())) 
+        else {
+            Ok(None)
+        }
+    }
+
+    fn expect(&mut self, expect: &[TokenKind<'a>]) -> ParseResult<'a, Token<'a>> {
+        if self.current().is_eof() {
+            Err(ParseError::UnexpectedEof(Vec::from(expect)).with_location(self.current().location().clone()))
+        }
+        else if !expect.contains(self.current().kind()) {
+            self.unexpected(expect)
         }
         else {
             self.advance()
@@ -71,11 +85,15 @@ impl<'a> Parser<'a> {
             Ok(ident)
         }
         else {
-            Err(
-                ParseError::UnexpectedToken(self.current().kind().to_string(), TokenKind::Ident("section name"))
-                    .with_location(self.current().location().clone())
-            )
+            self.unexpected(&[TokenKind::Ident("section name")])
         }
+    }
+
+    fn unexpected<T>(&mut self, want: &[TokenKind<'a>]) -> ParseResult<'a, T> {
+        Err(
+            ParseError::UnexpectedToken(self.current().kind().to_string(), want.to_vec())
+                .with_location(self.current().location().clone())
+        )
     }
 
     pub fn parse(&mut self, ast: &mut Program) -> ParseResult<'a, ()> {
@@ -86,44 +104,28 @@ impl<'a> Parser<'a> {
         }
 
         Ok(())
-    }
+    } 
 
-    fn parse_section(&mut self, ast: &mut Program) -> ParseResult<'a, ()> {
-        let section_loc = self.current_token.location().clone();
-        self.expect(TokenKind::Section)?;
-
-        let section = ast.add_section(&self.expect_ident()?.into(), section_loc); 
-
-        let mut had_decls = false;
-        loop {
-            match self.current().kind() {
-                TokenKind::Eof | TokenKind::Section => return Ok(()),
-                TokenKind::Require => {
-                    if had_decls {
-                        self.push_warning(ParseError::RequireAfterDecl.with_location(self.current_token.location().clone()));
-                    }
-                    section.add_require(self.parse_require()?);
-                }
-                _ => {
-                    let decl = self.parse_decl()?;
-                    if let Some(prev) = section.defines(decl.ident()) {
-                        return Err(ParseError::Redefinition(prev.location().clone(), decl.ident().clone()).with_location(decl.location().clone()))
-                    } 
-                    had_decls = true;
-                }
-            }
+    fn parse_optional_list<T>(&mut self, start: TokenKind<'a>, end: TokenKind<'a>, delim: TokenKind<'a>, parse_func: fn(&mut Self) -> ParseResult<'a, T>) -> ParseResult<'a, Vec<T>> {
+        if let Some(_) = self.advance_if(&[start])? {
+            self.parse_list(end, delim, parse_func)
+        }
+        else {
+            Ok(vec![])
         }
     }
 
-    fn parse_require(&mut self) -> ParseResult<'a, Located<String>> {
-        let loc = self.current_token.location().clone();
-        self.expect(TokenKind::Require)?;
-
-        Ok(self.expect_ident()?.to_string().with_location(loc))
-    }
-
-    fn parse_decl(&mut self) -> ParseResult<'a, Box<dyn Decl>> {
-        Err(ParseError::NotImplemented.with_location(self.current_token.location().clone()))
+    fn parse_list<T>(&mut self, end: TokenKind<'a>, delim: TokenKind<'a>, parse_func: fn(&mut Self) -> ParseResult<'a, T>) -> ParseResult<'a, Vec<T>> {
+        let mut elems = vec![];
+        let delims = [end.clone(), delim];
+        while self.current_token.kind() != &end {
+            elems.push(parse_func(self)?); 
+            
+            if self.expect(&delims)?.kind() == &end {
+                break;
+            }
+        }
+        Ok(elems)
     }
 }
 
@@ -141,8 +143,8 @@ pub type ParseResult<'a, T> = Result<T, Located<ParseError<'a>>>;
 pub enum ParseError<'a> {
     NotImplemented,
     Generic(String),
-    UnexpectedEof(TokenKind<'a>),
-    UnexpectedToken(String, TokenKind<'a>),
+    UnexpectedEof(Vec<TokenKind<'a>>),
+    UnexpectedToken(String, Vec<TokenKind<'a>>),
     Redefinition(Location, String),
     RequireAfterDecl
 }
@@ -173,6 +175,21 @@ impl<'a> ParseError<'a> {
     }
 }
 
+fn tokens_to_string(list: &[TokenKind]) -> String {
+    if list.len() == 1 {
+        format!{"`{}`", list[0]}
+    }
+    else {
+        format!(
+            "one of {}",
+            list.iter()
+                .map(|tk| format!("`{tk}`"))
+                .collect::<Vec<_>>()
+                .join(", ")
+        )
+    }
+}
+
 impl<'a> WithLocation for ParseError<'a> {}
 
 impl<'a> ToString for ParseError<'a> {
@@ -180,8 +197,8 @@ impl<'a> ToString for ParseError<'a> {
         match self {
             Self::NotImplemented => "<internal> Not Implemented.".into(),
             Self::Generic(err) => err.clone(),
-            Self::UnexpectedEof(tk) => format!("Unexpected end of file; Expected `{tk}`."),
-            Self::UnexpectedToken(got, want) => format!("Unexpected token `{got}`; Expected `{want}`."),
+            Self::UnexpectedEof(tk) => format!("Unexpected end of file; Expected {}.", tokens_to_string(tk)),
+            Self::UnexpectedToken(got, want) => format!("Unexpected token `{got}`; Expected {}.", tokens_to_string(want)),
             Self::Redefinition(_, ident) => format!("Redefinition of `{ident}`."),
             Self::RequireAfterDecl => format!("Encountered `require` after declarations.")
         }

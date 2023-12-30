@@ -179,3 +179,4 @@ pub trait WithLocation: Sized {
 }
 
 impl WithLocation for String {}
+impl WithLocation for u32 {}
