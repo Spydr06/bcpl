@@ -60,6 +60,10 @@ impl Section {
     pub fn add_require(&mut self, require: Located<String>) {
         self.required.insert(require);
     }
+
+    pub fn declare(&mut self, decl: Box<dyn Decl>) {
+        self.declarations.insert(decl.ident().clone(), decl);
+    }
 }
 
 pub trait Decl: Debug {

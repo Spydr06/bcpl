@@ -27,7 +27,8 @@ impl<'a> Parser<'a> {
                     let decl = self.parse_decl()?;
                     if let Some(prev) = section.defines(decl.ident()) {
                         return Err(ParseError::Redefinition(prev.location().clone(), decl.ident().clone()).with_location(decl.location().clone()))
-                    } 
+                    }
+                    section.declare(decl);
                     had_decls = true;
                 }
             }
@@ -74,20 +75,28 @@ impl<'a> Parser<'a> {
             None
         };
 
-        let mut value = None;
-        if self.advance_if(&[TokenKind::Eq])?.is_some() {
-            value = Some(self.parse_expr()?);
+        let value = if self.advance_if(&[TokenKind::Eq])?.is_some() {
+            Some(self.parse_expr()?)
         }
+        else {
+            None
+        };
 
-        match (&typ, &value) {
-            (None, None) => return Err(
+        match (typ, value) {
+            (None, None) => Err(
                     ParseError::Generic("Parameter requires either a type or default value.".into())
                         .with_location(loc)
                 ),
-            _ => ()
+            (Some(typ), Some(value)) => {
+                if value.typ() != &typ && typ.is_some() {
+                    Ok(Param::new(loc, ident, typ, Some(value.implicit_cast(typ.unwrap())))) 
+                }
+                else {
+                    Ok(Param::new(loc, ident, typ, Some(value)))
+                }
+            }
+            (_, value) => Ok(Param::new(loc, ident, typ.flatten(), value))
         }
-
-        Ok(Param::new(loc, ident, typ.unwrap(), value))
     }
 }
 

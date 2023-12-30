@@ -5,9 +5,31 @@ use super::{types::TypeIndex, stmt::Stmt};
 #[derive(Debug)]
 pub struct Expr {
     loc: Location,
-    typ: TypeIndex,
+    typ: Option<TypeIndex>,
 
     kind: ExprKind,
+}
+
+impl Expr {
+    pub fn new(loc: Location, typ: Option<TypeIndex>, kind: ExprKind) -> Self {
+        Self {
+            loc,
+            typ,
+            kind
+        }
+    }
+
+    pub fn implicit_cast(self, typ: TypeIndex) -> Self {
+        Self {
+            loc: self.loc.clone(),
+            typ: Some(typ),
+            kind: ExprKind::ImplicitCast(Box::new(self))
+        }
+    }
+
+    pub fn typ(&self) -> &Option<TypeIndex> {
+        &self.typ
+    }
 }
 
 #[derive(Debug)]

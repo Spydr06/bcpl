@@ -1,5 +1,5 @@
 use crate::{
-    ast::types::TypeIndex,
+    ast::types::{TypeIndex, TypeKind},
     token::TokenKind,
     source_file::{Located, WithLocation}
 };
@@ -24,5 +24,12 @@ impl<'a> Parser<'a> {
             .unwrap()
             .types()
             .by_ident(ident)
+    }
+
+    pub(super) fn get_type(&self, typ: TypeKind) -> Option<TypeIndex> {
+        self.ast.lock()
+            .unwrap()
+            .types()
+            .by_kind(typ)
     }
 }

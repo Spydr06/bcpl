@@ -50,30 +50,6 @@ impl SourceFile {
     pub fn path(&self) -> &String {
         &self.path
     }
-
-    pub fn highlight_error(&self, err: Located<impl IntoCompilerError>) {
-        let loc = err.location().clone();
-        let err: CompilerError = err.unwrap().into();        
-        println!("{} {}:{}:{}: {}", err.severity(), self.path(), loc.line, loc.column, err.message());
-        print!("{} {} ", format!(" {: >4}", loc.line).bold().b_black(), "|".b_black());
-
-        let line = self.line(loc.line as usize).unwrap();
-        let mark_start = loc.column as usize;
-        let mark_end = (loc.column + loc.width) as usize;
-        println!("{}{}{}", &line[..mark_start], (&line[mark_start..mark_end]).to_owned().bold().b_yellow(), &line[mark_end..]);
-
-        print!("      {} {}{}", "|".b_black(), " ".repeat(mark_start), "~".repeat(loc.width as usize).yellow());
-
-        if let Some(hint) = err.hint() {
-            print!(" {} {} {}", "<-".b_black(), "hint:".bold().b_grey(), hint.clone().b_grey());
-        }
-
-        println!();
-
-        for additional in err.additional {
-            self.highlight_error(additional) 
-        }
-    }
 }
 
 #[derive(Clone, PartialEq)]
@@ -100,6 +76,18 @@ impl Location {
 
     pub fn file_id(&self) -> SourceFileId {
         self.source_file_id
+    }
+
+    pub fn line(&self) -> usize {
+        self.line as usize
+    }
+
+    pub fn column(&self) -> usize {
+        self.column as usize
+    }
+
+    pub fn width(&self) -> usize {
+        self.width as usize
     }
 }
 

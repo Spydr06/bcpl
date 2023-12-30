@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-use crate::source_file::Location;
+use crate::{source_file::Location, token::TokenKind};
 
 pub type TypeIndex = u32;
 
@@ -103,7 +103,10 @@ pub struct TypeList {
 
 impl TypeList {
     pub fn by_ident(&self, ident: &str) -> Option<TypeIndex> {
-        let kind = TypeKind::try_from(ident).ok()?;
+        self.by_kind(TypeKind::try_from(ident).ok()?)
+    }
+
+    pub fn by_kind(&self, kind: TypeKind) -> Option<TypeIndex> {
         self.types.iter()
             .find(|(_, typ)| typ.kind == kind)
             .map(|(i, _)| *i)

@@ -2,7 +2,7 @@ use std::{collections::HashMap, sync::{Arc, Mutex}};
 
 use colorize::AnsiColor;
 
-use crate::{terminate, source_file::{SourceFile, SourceFileId, Located}, token::lexer::Lexer, ast, parser::{Parser, ParseError}};
+use crate::{terminate, source_file::{SourceFile, SourceFileId, Located}, token::lexer::Lexer, ast, parser::{Parser, ParseError}, error::{CompilerError, IntoCompilerError}};
 
 #[derive(Default)]
 pub enum BuildKind {
@@ -103,10 +103,31 @@ impl Context {
         terminate();
     }
 
-    fn parser_error(&self, err: Located<ParseError>) {
+    pub fn highlight_error(&self, err: Located<impl IntoCompilerError>) {
         let file = self.source_files.get(&err.location().file_id()).expect("invalid file id");
-        file.highlight_error(err);
+        let loc = err.location().clone();
+        let err: CompilerError = err.unwrap().into();        
+        println!("{} {}:{}:{}: {}", err.severity(), file.path(), loc.line(), loc.column(), err.message());
+        print!("{} {} ", format!(" {: >4}", loc.line()).bold().b_black(), "|".b_black());
+
+        let line = file.line(loc.line()).unwrap();
+        let mark_start = loc.column();
+        let mark_end = loc.column() + loc.width();
+        println!("{}{}{}", &line[..mark_start], (&line[mark_start..mark_end]).to_owned().bold().b_yellow(), &line[mark_end..]);
+
+        print!("      {} {}{}", "|".b_black(), " ".repeat(mark_start), "~".repeat(loc.width()).yellow());
+
+        if let Some(hint) = err.hint() {
+            print!(" {} {} {}", "<-".b_black(), "hint:".bold().b_grey(), hint.clone().b_grey());
+        }
+
+        println!();
+
+        for additional in err.additional {
+            self.highlight_error(additional) 
+        }
     }
+
 
     fn print_compiling_status(&self, filepath: &String) {
         println!("{} {filepath}", "Compiling:".bold().magenta());
@@ -123,12 +144,12 @@ impl Context {
             self.print_compiling_status((**parser).path());
         
             if let Err(err) = parser.parse() {
-                self.parser_error(err);
+                self.highlight_error(err);
                 had_errors = true;
             }
 
             for warning in parser.warnings() {
-                self.parser_error(warning.clone());
+                self.highlight_error(warning.clone());
             }
         }
 
