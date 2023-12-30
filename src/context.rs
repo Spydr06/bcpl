@@ -2,7 +2,7 @@ use std::collections::HashMap;
 
 use colorize::AnsiColor;
 
-use crate::{terminate, source_file::{SourceFile, SourceFileId}, token::lexer::Lexer, ast::{self, parser::Parser}};
+use crate::{terminate, source_file::{SourceFile, SourceFileId, Located}, token::lexer::Lexer, ast, parser::{Parser, ParseError}};
 
 #[derive(Default)]
 pub enum BuildKind {
@@ -103,18 +103,40 @@ impl Context {
         terminate();
     }
 
+    fn parser_error(&self, err: Located<ParseError>) {
+        let file = self.source_files.get(&err.location().file_id()).expect("invalid file id");
+        file.highlight_error(err);
+    }
+
+    fn print_compiling_status(&self, filepath: &String) {
+        println!("{} {filepath}", "Compiling:".bold().magenta());
+    }
+
     pub fn compile(mut self) {
         if self.source_files.is_empty() {
             self.fatal_error("no input files.");
         }
             
+        let mut had_errors = false;
         let parsers = self.source_files.values().map(|file| Parser::from(Lexer::from(file)));
         for mut parser in parsers {
+            self.print_compiling_status((**parser).path());
+        
             if let Err(err) = parser.parse(&mut self.ast) {
-                eprintln!("Parse Error: {err:?}");
-                eprintln!("^^^ In {:?}", (**parser).path());
+                self.parser_error(err);
+                had_errors = true;
+            }
+
+            for warning in parser.warnings() {
+                self.parser_error(warning.clone());
             }
         }
+
+        if had_errors {
+            terminate();
+        }
+
+        println!("generated ast: {:#?}", self.ast);
     }
 }
 

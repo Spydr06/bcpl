@@ -2,6 +2,7 @@ use crate::source_file::Location;
 
 use super::{types::TypeIndex, stmt::Stmt};
 
+#[derive(Debug)]
 pub struct Expr {
     loc: Location,
     typ: TypeIndex,
@@ -9,6 +10,7 @@ pub struct Expr {
     kind: ExprKind,
 }
 
+#[derive(Debug)]
 pub enum ExprKind {
     Ident(String),
 

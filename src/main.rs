@@ -9,6 +9,8 @@ mod context;
 mod source_file;
 mod token;
 mod ast;
+mod parser;
+mod error;
 
 trait ExpectArg<T> {
     fn expect_arg(self, program_name: &str, arg: &str) -> T;

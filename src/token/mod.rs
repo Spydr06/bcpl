@@ -1,3 +1,5 @@
+use std::fmt::Display;
+
 use crate::source_file::Location;
 
 pub(crate) mod lexer;
@@ -97,19 +99,19 @@ pub enum TokenKind<'a> {
     Abs
 }
 
-impl<'a> ToString for TokenKind<'a> {
-    fn to_string(&self) -> String {
+impl<'a> Display for TokenKind<'a> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         use TokenKind as TK;
         match self {
-            TK::Error(Some(err)) => return err.clone(),
-            TK::Atom(atom) => return format!("#{atom}"),
-            TK::IntegerLit(int) => return int.to_string(),
-            TK::StringLit(s) => return format!("\"{s}\""),
-            TK::CharLit(ch) => return format!("'{ch}'"),
+            TK::Error(Some(err)) => return write!(f, "{err}"),
+            TK::Atom(atom) => return write!(f, "#{atom}"),
+            TK::IntegerLit(int) => return write!(f, "{int}"),
+            TK::StringLit(s) => return write!(f, "\"{s}\""),
+            TK::CharLit(ch) => return write!(f, "'{ch}'"),
             _ => ()
         }
 
-        match self {
+        let s = match self {
             TK::Eof => "end of file",
             TK::Error(None) => "error",
             
@@ -187,7 +189,9 @@ impl<'a> ToString for TokenKind<'a> {
             TK::Mod => "mod",
             TK::Abs => "abs",
             _ => "<unexpected>"
-        }.into()
+        };
+
+        write!(f, "{s}")
     }
 }
 

@@ -4,6 +4,7 @@ use crate::source_file::Location;
 
 pub type TypeIndex = u32;
 
+#[derive(Debug)]
 pub struct Type {
     loc: Option<Location>,
     size: u32,
@@ -23,7 +24,7 @@ impl Type {
     }
 }
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub enum TypeKind {
     UInt8,
     UInt16,
@@ -70,6 +71,7 @@ const BUILTIN_TYPE_KINDS: [(TypeKind, u32); 14] = [
     (TypeKind::Atom, 4)
 ];
 
+#[derive(Debug)]
 pub struct TypeList {
     types: HashMap<TypeIndex, Type>
 }
@@ -79,7 +81,7 @@ impl Default for TypeList {
         Self {
             types: BUILTIN_TYPE_KINDS.iter()
                 .enumerate()
-                .map(|(i, (kind, size))| (i as TypeIndex, Type::new_builtin(kind.clone(), *size)))
+                .map(|(i, (kind, size))| ((i + 1) as TypeIndex, Type::new_builtin(kind.clone(), *size)))
                 .collect()
         }
     }
