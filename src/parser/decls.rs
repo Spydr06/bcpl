@@ -1,10 +1,10 @@
 use crate::{
     token::TokenKind, 
     source_file::{Location, Located, WithLocation}, 
-    ast::{Decl, Function, Program, FunctionBody, Param, IntoDecl, Section}
+    ast::{Decl, Function, FunctionBody, Param, IntoDecl, Section, types::TypeKind}
 };
 
-use super::{Parser, ParseResult, ParseError};
+use super::{Parser, ParseResult, ParseError, stmt::StmtContext};
 
 impl<'a> Parser<'a> {
     pub(super) fn parse_section(&mut self) -> ParseResult<'a, ()> {
@@ -60,8 +60,22 @@ impl<'a> Parser<'a> {
         
         let params = self.parse_optional_list(TokenKind::LParen, TokenKind::RParen, TokenKind::Comma, Self::parse_function_param)?;
 
-        let func = Function::new(decl_loc, ident, params, 0, tailcall_recursive, FunctionBody::Nothing);
-        Ok(func)
+        let body;
+        if let TokenKind::Eq = self.expect(&[TokenKind::Eq, TokenKind::Be])?.kind() {
+            body = FunctionBody::Expr(self.parse_expr(&mut StmtContext::Empty)?);
+            self.advance_if(&[TokenKind::Semicolon])?;
+        }
+        else {
+            body = FunctionBody::Stmt(self.parse_stmt(&mut StmtContext::Empty)?)
+        }
+
+        let typ = if let FunctionBody::Expr(expr) = &body {
+            expr.typ().to_owned() 
+        } else {
+            self.get_type(TypeKind::Unit)
+        };
+
+        Ok(Function::new(decl_loc, ident, params, typ, tailcall_recursive, body))
     }
 
     pub(super) fn parse_function_param(&mut self) -> ParseResult<'a, Param> {
@@ -76,7 +90,7 @@ impl<'a> Parser<'a> {
         };
 
         let value = if self.advance_if(&[TokenKind::Eq])?.is_some() {
-            Some(self.parse_expr()?)
+            Some(self.parse_expr(&mut StmtContext::Empty)?)
         }
         else {
             None

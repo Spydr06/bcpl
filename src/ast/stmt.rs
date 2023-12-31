@@ -9,6 +9,15 @@ pub struct Stmt {
     kind: StmtKind
 }
 
+impl Stmt {
+    pub fn new(loc: Location, kind: StmtKind) -> Self {
+        Self {
+            loc,
+            kind
+        }
+    }
+}
+
 #[derive(Debug)]
 pub enum StmtKind {
     Expr(Box<Expr>),

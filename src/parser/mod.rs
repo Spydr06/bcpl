@@ -3,13 +3,14 @@ use std::{ops::Deref, sync::{Arc, Mutex}};
 use crate::{
     token::{lexer::Lexer, Token, TokenKind},
     source_file::{Location, Located, WithLocation},
-    ast::Program,
+    ast::{Program, stmt::StmtKind},
     error::{IntoCompilerError, CompilerError, Severity}
 };
 
 mod types;
 mod decls;
 mod expr;
+mod stmt;
 
 pub struct Parser<'a> {
     lexer: Lexer<'a>,
@@ -147,6 +148,7 @@ pub enum ParseError<'a> {
     UnexpectedEof(Vec<TokenKind<'a>>),
     UnexpectedToken(String, Vec<TokenKind<'a>>),
     Redefinition(Location, String),
+    InvalidStmt(String, String),
     RequireAfterDecl
 }
 
@@ -201,7 +203,8 @@ impl<'a> ToString for ParseError<'a> {
             Self::UnexpectedEof(tk) => format!("Unexpected end of file; Expected {}.", tokens_to_string(tk)),
             Self::UnexpectedToken(got, want) => format!("Unexpected token `{got}`; Expected {}.", tokens_to_string(want)),
             Self::Redefinition(_, ident) => format!("Redefinition of `{ident}`."),
-            Self::RequireAfterDecl => format!("Encountered `require` after declarations.")
+            Self::RequireAfterDecl => format!("Encountered `require` after declarations."),
+            Self::InvalidStmt(stmt, err) => format!("Encountered `{stmt}` statement outside of `{err}`.")
         }
     }
 }

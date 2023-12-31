@@ -114,14 +114,14 @@ pub struct Function {
     params: Vec<Param>,
     required_params: u32,
 
-    return_type: TypeIndex,
+    return_type: Option<TypeIndex>,
     tailcall_recursive: bool, // recursiveness indicated by the `and` declaration
 
     body: FunctionBody
 }
 
 impl Function {
-    pub fn new(loc: Location, ident: String, params: Vec<Param>, return_type: TypeIndex, tailcall_recursive: bool, body: FunctionBody) -> Self {
+    pub fn new(loc: Location, ident: String, params: Vec<Param>, return_type: Option<TypeIndex>, tailcall_recursive: bool, body: FunctionBody) -> Self {
         Self {
             loc,
             is_public: true,
