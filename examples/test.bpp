@@ -1,6 +1,6 @@
 section Main
 
-let foo(a :: Int) = valof {
-    resultis 0;
+let foo(a :: Int) be {
+    return "foo";
 }
 

@@ -1,3 +1,5 @@
+use std::cell::RefCell;
+
 use crate::{
     token::TokenKind, 
     source_file::{Location, Located, WithLocation}, 
@@ -58,27 +60,24 @@ impl<'a> Parser<'a> {
     pub(super) fn parse_function_decl(&mut self, decl_loc: Location, tailcall_recursive: bool) -> ParseResult<'a, Function> {
         let ident = self.expect_ident()?;
         
-        let params = self.parse_optional_list(TokenKind::LParen, TokenKind::RParen, TokenKind::Comma, Self::parse_function_param)?;
+        let params = self.parse_optional_list(TokenKind::LParen, TokenKind::RParen, TokenKind::Comma, Self::parse_function_param, &())?;
 
-        let body;
-        if let TokenKind::Eq = self.expect(&[TokenKind::Eq, TokenKind::Be])?.kind() {
-            body = FunctionBody::Expr(self.parse_expr(&mut StmtContext::Empty)?);
+        let return_type = RefCell::new(None);
+        let body = if let TokenKind::Eq = self.expect(&[TokenKind::Eq, TokenKind::Be])?.kind() {
+            let expr = self.parse_expr(&StmtContext::Function(&return_type))?;
+            *return_type.borrow_mut() = Some(expr.typ().clone());
             self.advance_if(&[TokenKind::Semicolon])?;
+            FunctionBody::Expr(expr)
         }
         else {
-            body = FunctionBody::Stmt(self.parse_stmt(&mut StmtContext::Empty)?)
-        }
-
-        let typ = if let FunctionBody::Expr(expr) = &body {
-            expr.typ().to_owned() 
-        } else {
-            self.get_type(TypeKind::Unit)
+            FunctionBody::Stmt(self.parse_stmt(&StmtContext::Function(&return_type))?)
         };
 
-        Ok(Function::new(decl_loc, ident, params, typ, tailcall_recursive, body))
+        let return_type = return_type.take().unwrap_or(Some(self.get_type(TypeKind::Unit)));
+        Ok(Function::new(decl_loc, ident, params, return_type, tailcall_recursive, body))
     }
 
-    pub(super) fn parse_function_param(&mut self) -> ParseResult<'a, Param> {
+    pub(super) fn parse_function_param(&mut self, _: &()) -> ParseResult<'a, Param> {
         let loc = self.current_token.location().clone();
         let ident = self.expect_ident()?;
         

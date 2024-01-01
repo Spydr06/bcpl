@@ -1,7 +1,6 @@
 use crate::{
-    ast::types::{TypeIndex, TypeKind},
-    token::TokenKind,
-    source_file::{Located, WithLocation}
+    ast::types::{TypeIndex, TypeKind, Type},
+    token::TokenKind
 };
 
 use super::{Parser, ParseResult};
@@ -26,10 +25,17 @@ impl<'a> Parser<'a> {
             .by_ident(ident)
     }
 
-    pub(super) fn get_type(&self, typ: TypeKind) -> Option<TypeIndex> {
-        self.ast.lock()
-            .unwrap()
-            .types()
-            .by_kind(typ)
+    pub(super) fn get_type(&self, typ: TypeKind) -> TypeIndex {
+        let mut ast = self.ast.lock().unwrap();
+        let types = ast.types_mut();
+        if let Some(typ) = types.by_kind(&typ) {
+            return typ
+        }
+
+        types.define(Type::new(None, typ)) 
+    }
+
+    pub(super) fn get_string_type(&self) -> TypeIndex {
+        self.get_type(TypeKind::Pointer(self.get_type(TypeKind::Char)))
     }
 }

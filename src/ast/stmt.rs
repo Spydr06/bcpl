@@ -22,5 +22,6 @@ impl Stmt {
 pub enum StmtKind {
     Expr(Box<Expr>),
     Block(Vec<Stmt>),
-    ResultIs(Box<Expr>)
+    ResultIs(Box<Expr>),
+    Return(Box<Expr>)
 }

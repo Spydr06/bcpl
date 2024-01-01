@@ -30,6 +30,14 @@ impl Expr {
     pub fn typ(&self) -> &Option<TypeIndex> {
         &self.typ
     }
+
+    pub fn has_sideeffect(&self) -> bool {
+        match &self.kind {
+            ExprKind::Cast(expr) | ExprKind::ImplicitCast(expr) => expr.has_sideeffect(),
+            ExprKind::ValOf(_) | ExprKind::FuncCall(..) => true,
+            _ => false
+        }
+    }
 }
 
 #[derive(Debug)]

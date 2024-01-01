@@ -27,6 +27,10 @@ impl Program {
     pub fn types(&self) -> &TypeList {
         &self.types
     }
+
+    pub fn types_mut(&mut self) -> &mut TypeList {
+        &mut self.types
+    }
 }
 
 #[derive(Debug)]

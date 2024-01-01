@@ -108,20 +108,20 @@ impl<'a> Parser<'a> {
         Ok(())
     } 
 
-    fn parse_optional_list<T>(&mut self, start: TokenKind<'a>, end: TokenKind<'a>, delim: TokenKind<'a>, parse_func: fn(&mut Self) -> ParseResult<'a, T>) -> ParseResult<'a, Vec<T>> {
+    fn parse_optional_list<T, U>(&mut self, start: TokenKind<'a>, end: TokenKind<'a>, delim: TokenKind<'a>, parse_func: fn(&mut Self, &U) -> ParseResult<'a, T>, param: &U) -> ParseResult<'a, Vec<T>> {
         if let Some(_) = self.advance_if(&[start])? {
-            self.parse_list(end, delim, parse_func)
+            self.parse_list(end, delim, parse_func, param)
         }
         else {
             Ok(vec![])
         }
     }
 
-    fn parse_list<T>(&mut self, end: TokenKind<'a>, delim: TokenKind<'a>, parse_func: fn(&mut Self) -> ParseResult<'a, T>) -> ParseResult<'a, Vec<T>> {
+    fn parse_list<T, U>(&mut self, end: TokenKind<'a>, delim: TokenKind<'a>, parse_func: fn(&mut Self, &U) -> ParseResult<'a, T>, param: &U) -> ParseResult<'a, Vec<T>> {
         let mut elems = vec![];
         let delims = [end.clone(), delim];
         while self.current_token.kind() != &end {
-            elems.push(parse_func(self)?); 
+            elems.push(parse_func(self, param)?); 
             
             if self.expect(&delims)?.kind() == &end {
                 break;
@@ -149,13 +149,16 @@ pub enum ParseError<'a> {
     UnexpectedToken(String, Vec<TokenKind<'a>>),
     Redefinition(Location, String),
     InvalidStmt(String, String),
-    RequireAfterDecl
+    NoResultValue,
+    RequireAfterDecl,
+    ExprWithoutSideEffect,
 }
 
 impl<'a> ParseError<'a> {
     fn severity(&self) -> Severity {
         match self {
             Self::RequireAfterDecl => Severity::Warning,
+            Self::ExprWithoutSideEffect => Severity::Warning,
             _ => Severity::Error
         }
     }
@@ -204,7 +207,9 @@ impl<'a> ToString for ParseError<'a> {
             Self::UnexpectedToken(got, want) => format!("Unexpected token `{got}`; Expected {}.", tokens_to_string(want)),
             Self::Redefinition(_, ident) => format!("Redefinition of `{ident}`."),
             Self::RequireAfterDecl => format!("Encountered `require` after declarations."),
-            Self::InvalidStmt(stmt, err) => format!("Encountered `{stmt}` statement outside of `{err}`.")
+            Self::InvalidStmt(stmt, err) => format!("Encountered `{stmt}` statement outside of `{err}`."),
+            Self::NoResultValue => format!("No `resultis` statement found in `valof` body."),
+            Self::ExprWithoutSideEffect => format!("Expression has no side-effect when used as a statement."),
         }
     }
 }

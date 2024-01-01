@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-use crate::{source_file::Location, token::TokenKind};
+use crate::source_file::Location;
 
 pub type TypeIndex = u32;
 
@@ -14,6 +14,15 @@ pub struct Type {
 }
 
 impl Type {
+    pub fn new(loc: Option<Location>, kind: TypeKind) -> Self {
+        Self {
+            loc,
+            size: kind.try_get_size().unwrap_or(0),
+            is_builtin: false,
+            kind
+        }
+    }
+
     fn new_builtin(kind: TypeKind, size: u32) -> Self {
         Self {
             loc: None,
@@ -72,6 +81,20 @@ const BUILTIN_TYPE_KINDS: [(TypeKind, u32); 14] = [
     (TypeKind::Atom, 4)
 ];
 
+impl TypeKind {
+    pub fn try_get_size(&self) -> Option<u32> {
+        match self {
+            TypeKind::Unit => Some(0),
+            TypeKind::UInt8 | TypeKind::Int8 | TypeKind::Char | TypeKind::Bool => Some(1),
+            TypeKind::UInt16 | TypeKind::Int16 => Some(2),
+            TypeKind::UInt32 | TypeKind::Int32 | TypeKind::Float32 | TypeKind::Atom => Some(4),
+            TypeKind::UInt64 | TypeKind::Int64 => Some(8),
+            TypeKind::Pointer(_) => Some(std::mem::size_of::<*const ()>() as u32), // TODO: handle crosscompilation
+            _ => None,
+        } 
+    }
+}
+
 impl TryFrom<&str> for TypeKind {
     type Error = ();
 
@@ -98,20 +121,29 @@ impl TryFrom<&str> for TypeKind {
 
 #[derive(Debug)]
 pub struct TypeList {
-    types: HashMap<TypeIndex, Type>
+    types: HashMap<TypeIndex, Type>,
+    next_type_index: TypeIndex,
 }
 
 impl TypeList {
     pub fn by_ident(&self, ident: &str) -> Option<TypeIndex> {
-        self.by_kind(TypeKind::try_from(ident).ok()?)
+        self.by_kind(&TypeKind::try_from(ident).ok()?)
     }
 
-    pub fn by_kind(&self, kind: TypeKind) -> Option<TypeIndex> {
+    pub fn by_kind(&self, kind: &TypeKind) -> Option<TypeIndex> {
         self.types.iter()
-            .find(|(_, typ)| typ.kind == kind)
+            .find(|(_, typ)| &typ.kind == kind)
             .map(|(i, _)| *i)
     }
+
+    pub fn define(&mut self, typ: Type) -> TypeIndex {
+        self.next_type_index += 1;
+        self.types.insert(self.next_type_index, typ);
+        self.next_type_index
+    }
 }
+
+const CUSTOM_TYPE_INDEX_START: TypeIndex = 1000;
 
 impl Default for TypeList {
     fn default() -> Self {
@@ -119,7 +151,8 @@ impl Default for TypeList {
             types: BUILTIN_TYPE_KINDS.iter()
                 .enumerate()
                 .map(|(i, (kind, size))| ((i + 1) as TypeIndex, Type::new_builtin(kind.clone(), *size)))
-                .collect()
+                .collect(),
+            next_type_index: CUSTOM_TYPE_INDEX_START
         }
     }
 }
