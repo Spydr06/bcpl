@@ -3,7 +3,7 @@ use crate::{
     token::TokenKind, source_file::WithLocation
 };
 
-use super::{Parser, ParseResult, ParseError};
+use super::{Parser, ParseResult, ParseError, stmt::StmtContext};
 
 impl<'a> Parser<'a> {
     pub(super) fn parse_type_alias(&mut self) -> ParseResult<'a, ()> {
@@ -45,6 +45,7 @@ impl<'a> Parser<'a> {
                 self.expect(&[TokenKind::RParen])?;
                 Ok(typ)
             },
+            TokenKind::LBracket => self.parse_array_type(),
             TokenKind::LogAnd => {
                 self.advance()?;
                 let inner_typ = self.parse_type()?;
@@ -66,6 +67,26 @@ impl<'a> Parser<'a> {
         else {
             types.define(Type::new(None, TypeKind::Alias(ident.to_string(), None)))
         }
+    }
+
+    fn parse_array_type(&mut self) -> ParseResult<'a, TypeIndex> {
+        self.advance()?;
+        let inner = self.parse_type()?;
+        if let TokenKind::Comma = self.expect(&[TokenKind::RBracket, TokenKind::Comma])?.kind() {
+            let mut expr = self.parse_expr(&StmtContext::Empty)?;
+            self.expect(&[TokenKind::RBracket])?;
+            
+            let index_type = self.get_type(TypeKind::UInt64);
+            if expr.typ() != &Some(index_type) {
+                expr = expr.implicit_cast(index_type)
+            }
+
+            Ok(self.get_type(TypeKind::Array(inner, Box::new(expr))))
+        }
+        else {
+            Ok(self.get_type(TypeKind::Slice(inner)))
+        }
+
     }
 
     pub(super) fn get_type(&self, typ: TypeKind) -> TypeIndex {

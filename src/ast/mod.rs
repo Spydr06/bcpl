@@ -194,3 +194,21 @@ impl Param {
         }
     }
 }
+
+#[derive(Clone, Debug, PartialEq)]
+pub struct LocalDecl {
+    loc: Location,
+    ident: String,
+
+    typ: Option<TypeIndex>
+}
+
+impl LocalDecl {
+    pub fn new(loc: Location, ident: String, typ: Option<TypeIndex>) -> Self {
+        Self {
+            loc,
+            ident,
+            typ
+        }
+    }
+}

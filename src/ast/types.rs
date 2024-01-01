@@ -2,6 +2,8 @@ use std::collections::HashMap;
 
 use crate::source_file::Location;
 
+use super::expr::Expr;
+
 pub type TypeIndex = u32;
 
 #[derive(Debug)]
@@ -67,7 +69,7 @@ pub enum TypeKind {
     Atom,
 
     Pointer(TypeIndex),
-    Array(TypeIndex, usize),
+    Array(TypeIndex, Box<Expr>),
     Slice(TypeIndex),
 
     Alias(String, Option<TypeIndex>),

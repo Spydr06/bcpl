@@ -1,8 +1,15 @@
 section Main
 
-type Aliased = Int32
+let main be {
+    writef("%i\n", sum(34, 35));
+    endcase;
+    switchon 10 into {
+        default:
 
-let foo(a :: Aliased) be {
-    return "foo";
+        default:
+
+    }
 }
+
+let sum(a :: Int32, b :: Int32) = a + b
 

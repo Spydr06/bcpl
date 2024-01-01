@@ -10,6 +10,8 @@ use super::{Parser, ParseResult, stmt::StmtContext, ParseError};
 
 #[derive(PartialEq, PartialOrd)]
 enum OperatorPrecedence {
+    Product = 3,
+    Sum = 2,
     Call = 1,
     Lowest = 0 
 }
@@ -20,6 +22,8 @@ impl<'a> TryFrom<&TokenKind<'a>> for OperatorPrecedence {
     fn try_from(value: &TokenKind<'a>) -> Result<Self, Self::Error> {
         match value {
             TokenKind::LParen => Ok(Self::Call),
+            TokenKind::Plus | TokenKind::Minus => Ok(Self::Sum),
+            TokenKind::Star | TokenKind::Slash | TokenKind::Mod => Ok(Self::Product),
             _ => Err(())
         }
     }
@@ -43,6 +47,8 @@ impl<'a> Parser<'a> {
     fn parse_infix_expr(&mut self, context: &StmtContext, left: Expr) -> ParseResult<'a, Expr> {
         match self.current().kind() {
             TokenKind::LParen => self.parse_function_call(context, left),
+            TokenKind::Plus | TokenKind::Minus => self.parse_sum(context, left),
+            TokenKind::Star | TokenKind::Slash => self.parse_product(context, left),
             _ => self.unexpected(&[TokenKind::Ident("operator".into())])
         }
     }
@@ -115,5 +121,35 @@ impl<'a> Parser<'a> {
         let args = self.parse_list(TokenKind::RParen, TokenKind::Comma, Self::parse_expr, context)?;
 
         Ok(Expr::new(loc, None, ExprKind::FuncCall(Box::new(callee), args)))
+    }
+
+    fn parse_sum(&mut self, context: &StmtContext, left: Expr) -> ParseResult<'a, Expr> {
+        let tok = self.advance()?;
+        let mut right = self.parse_expr_with_precedence(context, OperatorPrecedence::Sum)?;
+        
+        let typ = left.typ().clone();
+        if let Some(typ) = &typ && &Some(*typ) != right.typ() {
+            right = right.implicit_cast(*typ);
+        }
+
+        let kind = if tok.kind() == &TokenKind::Plus { ExprKind::Add } else { ExprKind::Sub }
+            (Box::new(left), Box::new(right));
+
+        Ok(Expr::new(tok.location().clone(), typ, kind))
+    }
+
+    fn parse_product(&mut self, context: &StmtContext, left: Expr) -> ParseResult<'a, Expr> {
+        let tok = self.advance()?;
+        let mut right = self.parse_expr_with_precedence(context, OperatorPrecedence::Product)?;
+
+        let typ = left.typ().clone();
+        if let Some(typ) = &typ && &Some(*typ) != right.typ() {
+            right = right.implicit_cast(*typ);
+        }
+
+        let kind = if tok.kind() == &TokenKind::Star { ExprKind::Mul } else { ExprKind::Div }
+            (Box::new(left), Box::new(right));
+
+        Ok(Expr::new(tok.location().clone(), typ, kind))
     }
 }

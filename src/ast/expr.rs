@@ -2,7 +2,7 @@ use crate::source_file::Location;
 
 use super::{types::TypeIndex, stmt::Stmt};
 
-#[derive(Debug)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct Expr {
     loc: Location,
     typ: Option<TypeIndex>,
@@ -40,7 +40,7 @@ impl Expr {
     }
 }
 
-#[derive(Debug)]
+#[derive(Clone, Debug, PartialEq)]
 pub enum ExprKind {
     Ident(String),
 
@@ -51,6 +51,14 @@ pub enum ExprKind {
 
     True,
     False,
+
+    Add(Box<Expr>, Box<Expr>),
+    Sub(Box<Expr>, Box<Expr>),
+    Mul(Box<Expr>, Box<Expr>),
+    Div(Box<Expr>, Box<Expr>),
+
+    Mod(Box<Expr>, Box<Expr>),
+    Abs(Box<Expr>),
 
     Cast(Box<Expr>),
     ImplicitCast(Box<Expr>),

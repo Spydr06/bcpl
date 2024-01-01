@@ -268,6 +268,10 @@ impl<'a> Iterator for Lexer<'a> {
                         self.next_char();
                         return Some(Token::with_width(loc, 2, TokenKind::Le))
                     }
+                    else if ch == '>' {
+                        self.next_char();
+                        return Some(Token::with_width(loc, 2, TokenKind::Compound))
+                    }
                     else if ch == '<' {
                         self.next_char();
                         return Some(Token::with_width(loc, 2, TokenKind::LShift))
