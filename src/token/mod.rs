@@ -96,7 +96,8 @@ pub enum TokenKind<'a> {
     Manifest,
     Static,
     Mod,
-    Abs
+    Abs,
+    Type
 }
 
 impl<'a> Display for TokenKind<'a> {
@@ -261,6 +262,7 @@ impl<'a> From<&'a str> for TokenKind<'a> {
             "mod" => TK::Mod,
             "abs" => TK::Abs,
             "for" => TK::For,
+            "type" => TK::Type,
             _ => TK::Ident(value.into())
         } 
     }

@@ -1,6 +1,8 @@
 section Main
 
-let foo(a :: Int) be {
+type Aliased = Int32
+
+let foo(a :: Aliased) be {
     return "foo";
 }
 

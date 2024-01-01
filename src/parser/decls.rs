@@ -25,6 +25,10 @@ impl<'a> Parser<'a> {
                     }
                     section.add_require(self.parse_require()?);
                 }
+                TokenKind::Type => {
+                    had_decls = true;
+                    self.parse_type_alias()?;
+                }
                 _ => {
                     let decl = self.parse_decl()?;
                     if let Some(prev) = section.defines(decl.ident()) {
@@ -101,14 +105,14 @@ impl<'a> Parser<'a> {
                         .with_location(loc)
                 ),
             (Some(typ), Some(value)) => {
-                if value.typ() != &typ && typ.is_some() {
-                    Ok(Param::new(loc, ident, typ, Some(value.implicit_cast(typ.unwrap())))) 
+                if value.typ() != &Some(typ) {
+                    Ok(Param::new(loc, ident, Some(typ), Some(value.implicit_cast(typ)))) 
                 }
                 else {
-                    Ok(Param::new(loc, ident, typ, Some(value)))
+                    Ok(Param::new(loc, ident, Some(typ), Some(value)))
                 }
             }
-            (_, value) => Ok(Param::new(loc, ident, typ.flatten(), value))
+            (_, value) => Ok(Param::new(loc, ident, typ, value))
         }
     }
 }

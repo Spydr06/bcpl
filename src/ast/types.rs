@@ -23,13 +23,25 @@ impl Type {
         }
     }
 
-    fn new_builtin(kind: TypeKind, size: u32) -> Self {
+    fn new_builtin(kind: TypeKind) -> Self {
         Self {
             loc: None,
-            size,
+            size: kind.try_get_size().expect(&format!("internal error when initializing builtin type {kind:?}")),
             is_builtin: true,
             kind
         }
+    }
+
+    pub fn location(&self) -> &Option<Location> {
+        &self.loc
+    }
+
+    pub fn set_location(&mut self, loc: Location) {
+        self.loc = Some(loc);
+    }
+
+    pub fn set_kind(&mut self, kind: TypeKind) {
+        self.kind = kind;
     }
 }
 
@@ -56,6 +68,9 @@ pub enum TypeKind {
 
     Pointer(TypeIndex),
     Array(TypeIndex, usize),
+    Slice(TypeIndex),
+
+    Alias(String, Option<TypeIndex>),
 
     // Table
     // Function
@@ -71,7 +86,7 @@ impl TypeKind {
             TypeKind::UInt8 | TypeKind::Int8 | TypeKind::Char | TypeKind::Bool => Some(1),
             TypeKind::UInt16 | TypeKind::Int16 => Some(2),
             TypeKind::UInt32 | TypeKind::Int32 | TypeKind::Float32 | TypeKind::Atom => Some(4),
-            TypeKind::UInt64 | TypeKind::Int64 => Some(8),
+            TypeKind::UInt64 | TypeKind::Int64 | TypeKind::Float64 => Some(8),
             TypeKind::Pointer(_) => Some(std::mem::size_of::<*const ()>() as u32), // TODO: handle crosscompilation
             _ => None,
         } 
@@ -102,14 +117,40 @@ impl TryFrom<&str> for TypeKind {
     }
 }
 
-#[derive(Debug, Default)]
+const BUILTIN_TYPE_KINDS: [TypeKind; 14] = [
+    TypeKind::UInt8,
+    TypeKind::UInt16,
+    TypeKind::UInt32,
+    TypeKind::UInt64,
+    TypeKind::Int8,
+    TypeKind::Int16,
+    TypeKind::Int32,
+    TypeKind::Int64,
+    TypeKind::Float32,
+    TypeKind::Float64,
+    TypeKind::Bool,
+    TypeKind::Char,
+    TypeKind::Unit,
+    TypeKind::Atom
+];
+
+#[derive(Debug)]
 pub struct TypeList {
     types: Vec<Type>
 }
 
 impl TypeList {
-    pub fn by_ident(&self, ident: &str) -> Option<TypeIndex> {
+    pub fn builtin_by_ident(&self, ident: &str) -> Option<TypeIndex> {
         self.by_kind(&TypeKind::try_from(ident).ok()?)
+    }
+
+    pub fn find_alias(&self, ident: &str) -> Option<TypeIndex> {
+        self.types.iter()
+            .enumerate()
+            .find_map(|(i, typ)| match &typ.kind {
+                TypeKind::Alias(alias, _) if alias == ident => Some(i as u32),
+                _ => None
+            })
     }
 
     pub fn by_kind(&self, kind: &TypeKind) -> Option<TypeIndex> {
@@ -123,5 +164,18 @@ impl TypeList {
         self.types.push(typ);
         self.types.len() as u32 - 1
     }
+
+    pub fn get_mut(&mut self, index: TypeIndex) -> Option<&mut Type> {
+        self.types.get_mut(index as usize)
+    }
 }
 
+impl Default for TypeList {
+    fn default() -> Self {
+        Self {
+            types: BUILTIN_TYPE_KINDS.into_iter()
+                .map(Type::new_builtin)
+                .collect()
+        }
+    }
+}
