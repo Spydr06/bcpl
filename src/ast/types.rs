@@ -64,23 +64,6 @@ pub enum TypeKind {
     // ...
 }
 
-const BUILTIN_TYPE_KINDS: [(TypeKind, u32); 14] = [
-    (TypeKind::UInt8, 1),
-    (TypeKind::UInt16, 2),
-    (TypeKind::UInt32, 4),
-    (TypeKind::UInt64, 8),
-    (TypeKind::Int8, 1),
-    (TypeKind::Int16, 2),
-    (TypeKind::Int32, 4),
-    (TypeKind::Int64, 8),
-    (TypeKind::Float32, 4),
-    (TypeKind::Float64, 8),
-    (TypeKind::Bool, 1),
-    (TypeKind::Char, 1),
-    (TypeKind::Unit, 0),
-    (TypeKind::Atom, 4)
-];
-
 impl TypeKind {
     pub fn try_get_size(&self) -> Option<u32> {
         match self {
@@ -119,10 +102,9 @@ impl TryFrom<&str> for TypeKind {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Default)]
 pub struct TypeList {
-    types: HashMap<TypeIndex, Type>,
-    next_type_index: TypeIndex,
+    types: Vec<Type>
 }
 
 impl TypeList {
@@ -132,27 +114,14 @@ impl TypeList {
 
     pub fn by_kind(&self, kind: &TypeKind) -> Option<TypeIndex> {
         self.types.iter()
+            .enumerate()
             .find(|(_, typ)| &typ.kind == kind)
-            .map(|(i, _)| *i)
+            .map(|(i, _)| i as u32)
     }
 
     pub fn define(&mut self, typ: Type) -> TypeIndex {
-        self.next_type_index += 1;
-        self.types.insert(self.next_type_index, typ);
-        self.next_type_index
+        self.types.push(typ);
+        self.types.len() as u32 - 1
     }
 }
 
-const CUSTOM_TYPE_INDEX_START: TypeIndex = 1000;
-
-impl Default for TypeList {
-    fn default() -> Self {
-        Self {
-            types: BUILTIN_TYPE_KINDS.iter()
-                .enumerate()
-                .map(|(i, (kind, size))| ((i + 1) as TypeIndex, Type::new_builtin(kind.clone(), *size)))
-                .collect(),
-            next_type_index: CUSTOM_TYPE_INDEX_START
-        }
-    }
-}

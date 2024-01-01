@@ -4,6 +4,6 @@ require Std
 
 let main(argc :: Int, argv :: Int64 = true) be {
     writes("Hello, World");
-    0;
+    return 0;
 }
 
