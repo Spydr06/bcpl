@@ -1,15 +1,21 @@
 section Main
 
-let main be {
-    writef("%i\n", sum(34, 35));
-    endcase;
-    switchon 10 into {
-        default:
+type OptionI32 = Some(Int32) : None
 
-        default:
+let unwrap(_ :: &OptionI32)
+    : Some(i) -> i
+    : None -> 0
 
-    }
-}
+let head(_ :: [Int32])
+    : [] -> 0 // panic here
+    : [a, ..] -> a
 
-let sum(a :: Int32, b :: Int32) = a + b
+let fibonacci(n :: Int32)
+    : 0 | 1 -> n
+    : ? -> fibonacci(n - 1) + fibonacci(n - 2)
 
+let is_ok(_ :: Atom)
+    : #ok -> true
+    : ? -> false
+
+let main be {}

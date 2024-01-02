@@ -1,6 +1,6 @@
 use crate::source_file::Location;
 
-use super::{expr::Expr, LocalDecl};
+use super::{expr::Expr, LocalDecl, pattern::Pattern};
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct Stmt {
@@ -40,5 +40,6 @@ pub enum StmtKind {
     DefaultCase,
     EndCase,
 
-
+    Match(Vec<Expr>, Vec<(Vec<Pattern>, Box<Stmt>)>),
+    Every(Vec<Expr>, Vec<(Vec<Pattern>, Box<Stmt>)>),
 }

@@ -2,6 +2,8 @@ use crate::source_file::Location;
 
 use super::{types::TypeIndex, stmt::Stmt};
 
+pub type AtomIndex = u32;
+
 #[derive(Clone, Debug, PartialEq)]
 pub struct Expr {
     loc: Location,
@@ -43,6 +45,7 @@ impl Expr {
 #[derive(Clone, Debug, PartialEq)]
 pub enum ExprKind {
     Ident(String),
+    Atom(AtomIndex),
 
     IntLit(u64),
     FloatLit(f64),

@@ -56,6 +56,7 @@ impl<'a> Parser<'a> {
     fn parse_prefix_expr(&mut self, context: &StmtContext) -> ParseResult<'a, Expr> {
         match self.current().kind() {
             TokenKind::Ident(ident) => self.parse_ident(ident.to_string()),
+            TokenKind::Atom(atom) => self.parse_atom(atom.to_string()),
             TokenKind::True | TokenKind::False => self.parse_bool_lit(),
             TokenKind::IntegerLit(int) => self.parse_integer_lit(*int),
             TokenKind::StringLit(str) => self.parse_string_lit(str.to_string()),
@@ -69,6 +70,16 @@ impl<'a> Parser<'a> {
         let loc = self.advance()?.location().clone();
 
         Ok(Expr::new(loc, None, ExprKind::Ident(ident)))
+    }
+    
+    fn parse_atom(&mut self, atom: String) -> ParseResult<'a, Expr> {
+        let loc = self.advance()?.location().clone();
+
+        Ok(Expr::new(
+            loc,
+            Some(self.get_type(TypeKind::Atom)),
+            ExprKind::Atom(self.ast.lock().unwrap().add_atom(atom))
+        ))
     }
 
     fn parse_bool_lit(&mut self) -> ParseResult<'a, Expr> {

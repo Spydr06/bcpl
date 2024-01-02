@@ -2,7 +2,7 @@ use crate::source_file::{Located, WithLocation};
 
 use super::expr::Expr;
 
-#[derive(Debug)]
+#[derive(Clone, Debug, PartialEq)]
 pub enum Pattern {
     Any, // `?`  
     Query(String), // identifier
@@ -18,7 +18,7 @@ pub enum Pattern {
 
 impl WithLocation for Pattern {}
 
-#[derive(Debug)]
+#[derive(Clone, Debug, PartialEq)]
 pub enum PatternTerm {
     Basic(Expr),
     Lt(Expr),

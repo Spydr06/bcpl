@@ -53,7 +53,7 @@ impl<'a> Parser<'a> {
                 let ident = ident.to_string();
                 self.advance()?;
 
-                if self.current().kind() == &TokenKind::LParen {
+                if self.advance_if(&[TokenKind::LParen])?.is_some() {
                     let inner = self.parse_pattern_list()?;
                     self.expect(&[TokenKind::RParen])?;
                     Ok(Pattern::Variant(ident, inner))

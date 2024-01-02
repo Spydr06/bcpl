@@ -2,7 +2,7 @@ use std::{collections::{HashMap, HashSet}, fmt::Debug, hash::Hash};
 
 use crate::source_file::{Location, Located};
 
-use self::{types::{TypeList, TypeIndex}, expr::Expr, stmt::Stmt, pattern::Pattern};
+use self::{types::{TypeList, TypeIndex}, expr::{Expr, AtomIndex}, stmt::Stmt, pattern::Pattern};
 
 pub(crate) mod types;
 pub(crate) mod expr;
@@ -12,7 +12,10 @@ pub(crate) mod pattern;
 #[derive(Default, Debug)]
 pub struct Program {
     sections: HashMap<String, Section>,
-    types: TypeList
+    types: TypeList,
+
+    next_atom_index: AtomIndex,
+    atoms: HashMap<String, AtomIndex>
 }
 
 impl Program {
@@ -22,6 +25,17 @@ impl Program {
         }
         else {
             todo!()
+        }
+    }
+
+    pub fn add_atom(&mut self, atom: String) -> AtomIndex {
+        if let Some(index) = self.atoms.get(&atom) {
+            *index
+        }
+        else {
+            self.atoms.insert(atom, self.next_atom_index);
+            self.next_atom_index += 1;
+            self.next_atom_index - 1
         }
     }
 
