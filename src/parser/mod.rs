@@ -11,6 +11,7 @@ mod types;
 mod decls;
 mod expr;
 mod stmt;
+mod pattern;
 
 pub struct Parser<'a> {
     lexer: Lexer<'a>,
@@ -149,6 +150,7 @@ pub enum ParseError<'a> {
     UnexpectedToken(String, Vec<TokenKind<'a>>),
     Redefinition(Location, String),
     InvalidStmt(String, String),
+    WrongNumOfPatterns(usize),
     NoResultValue,
     RequireAfterDecl,
     ExprWithoutSideEffect,
@@ -210,6 +212,7 @@ impl<'a> ToString for ParseError<'a> {
             Self::InvalidStmt(stmt, err) => format!("Encountered `{stmt}` statement outside of `{err}`."),
             Self::NoResultValue => format!("No `resultis` statement found in `valof` body."),
             Self::ExprWithoutSideEffect => format!("Expression has no side-effect when used as a statement."),
+            Self::WrongNumOfPatterns(expect) => format!("Wrong number of patterns, expected {expect}."),
         }
     }
 }

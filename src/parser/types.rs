@@ -1,5 +1,5 @@
 use crate::{
-    ast::types::{TypeIndex, TypeKind, Type},
+    ast::types::{TypeIndex, TypeKind, Type, SumVariant},
     token::TokenKind, source_file::WithLocation
 };
 
@@ -35,9 +35,14 @@ impl<'a> Parser<'a> {
     pub(super) fn parse_type(&mut self) -> ParseResult<'a, TypeIndex> {
         match self.current().kind().clone() {
             TokenKind::Ident(ident) => {
-                let typ = self.type_ident(ident);
+                let ident = ident.to_string();
                 self.advance()?;
-                Ok(typ)
+                if [TokenKind::LParen, TokenKind::Colon].contains(self.current().kind()) {
+                    self.parse_sum_type(ident)
+                }
+                else {
+                    Ok(self.type_ident(ident))
+                }
             }
             TokenKind::LParen => {
                 self.advance()?;
@@ -55,13 +60,37 @@ impl<'a> Parser<'a> {
         }
     }
 
-    fn type_ident(&self, ident: &str) -> TypeIndex {
+    fn parse_type_param(&mut self, _: &()) -> ParseResult<'a, TypeIndex> {
+        self.parse_type()
+    }
+
+    fn parse_sum_variant(&mut self, ident: String) -> ParseResult<'a, SumVariant> {
+        Ok(SumVariant::Basic(
+            ident,
+            self.parse_optional_list(TokenKind::LParen, TokenKind::RParen, TokenKind::Comma, Self::parse_type_param, &())?
+        ))
+    }
+
+    fn parse_sum_type(&mut self, first: String) -> ParseResult<'a, TypeIndex> {
+        let mut variants = vec![self.parse_sum_variant(first)?];
+
+        while let TokenKind::Colon = self.current().kind() {
+            self.advance()?;
+
+            let ident = self.expect_ident()?;
+            variants.push(self.parse_sum_variant(ident)?);
+        }
+
+        Ok(self.get_type(TypeKind::Sum(variants)))
+    }
+
+    fn type_ident(&self, ident: String) -> TypeIndex {
         let mut ast = self.ast.lock().unwrap(); 
         let types = ast.types_mut();
-        if let Some(typ) = types.builtin_by_ident(ident) {
+        if let Some(typ) = types.builtin_by_ident(&ident) {
             typ
         }
-        else if let Some(typ) = types.find_alias(ident) {
+        else if let Some(typ) = types.find_alias(&ident) {
             typ
         }
         else {

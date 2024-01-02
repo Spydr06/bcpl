@@ -24,7 +24,7 @@ pub enum StmtKind {
     Block(Vec<Stmt>),
 
     ResultIs(Box<Expr>),
-    Return(Box<Expr>),
+    Return,
 
     If(Box<Expr>, Box<Stmt>, Option<Box<Stmt>>),
     Unless(Box<Expr>, Box<Stmt>),

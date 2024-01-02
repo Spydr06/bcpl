@@ -1,7 +1,7 @@
 use std::cell::RefCell;
 
 use crate::{
-    ast::{stmt::{Stmt, StmtKind}, expr::{Expr, ExprKind}, types::{TypeIndex, TypeKind}, LocalDecl}, 
+    ast::{stmt::{Stmt, StmtKind}, expr::{Expr, ExprKind}, types::{TypeIndex, TypeKind}, LocalDecl, Param}, 
     source_file::{WithLocation, Located, Location},
     token::{Token, TokenKind}
 };
@@ -12,7 +12,7 @@ pub(super) enum StmtContext<'a> {
     ValOf(&'a RefCell<Option<Option<TypeIndex>>>, &'a StmtContext<'a>),
     Block(&'a StmtContext<'a>),
     NoBlock(&'a StmtContext<'a>),
-    Function(&'a RefCell<Option<Option<TypeIndex>>>),
+    Function(&'a Vec<Param>),
     Loop(&'a StmtContext<'a>),
     SwitchOn(&'a RefCell<Option<Location>>, &'a Option<TypeIndex>, &'a StmtContext<'a>),
     Empty
@@ -31,14 +31,14 @@ impl<'a> StmtContext<'a> {
         }
     }
 
-    pub(super) fn function_return_type(&self) -> Option<&RefCell<Option<Option<TypeIndex>>>> {
+    pub(super) fn in_function(&self) -> Option<&'a Vec<Param>> {
         match self {
             Self::ValOf(_, outer) 
                 | Self::Block(outer)
                 | Self::NoBlock(outer)
                 | Self::Loop(outer) 
-                | Self::SwitchOn(.., outer) => outer.function_return_type(),
-            Self::Function(return_type) => Some(return_type),
+                | Self::SwitchOn(.., outer) => outer.in_function(),
+            Self::Function(params) => Some(params),
             Self::Empty => None
         }
     }
@@ -158,27 +158,12 @@ impl<'a> Parser<'a> {
 
     fn parse_return(&mut self, context: &StmtContext) -> ParseResult<'a, Stmt> {
         let loc = self.expect(&[TokenKind::Return])?.location().clone();
-
-        let expr = self.parse_expr(context)?;
-        let return_type = context.function_return_type()
-            .ok_or_else(||
-                ParseError::InvalidStmt("return".into(), "function".into())
-                    .with_location(loc.clone())
-            )?;
-        
-        let rt = return_type.borrow().clone();
-        let expr = match rt {
-            Some(rt) if &rt != expr.typ() => Expr::new(loc.clone(), rt, ExprKind::ImplicitCast(Box::new(expr))),
-            None => {
-                *return_type.borrow_mut() = Some(expr.typ().clone());
-                expr
-            }
-            _ => expr
-        };
-
         self.semicolon_if_required(context)?;
-
-        Ok(Stmt::new(loc, StmtKind::Return(Box::new(expr))))
+        
+        context.in_function()
+            .map(|_| Stmt::new(loc.clone(), StmtKind::Return))
+            .ok_or_else(|| ParseError::InvalidStmt("return".into(), "function".into())
+                .with_location(loc))
     }
 
     fn parse_if(&mut self, context: &StmtContext) -> ParseResult<'a, Stmt> {

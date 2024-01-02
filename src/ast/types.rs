@@ -73,6 +73,7 @@ pub enum TypeKind {
     Slice(TypeIndex),
 
     Alias(String, Option<TypeIndex>),
+    Sum(Vec<SumVariant>),
 
     // Table
     // Function
@@ -117,6 +118,12 @@ impl TryFrom<&str> for TypeKind {
             _ => Err(())
         }
     }
+}
+
+#[derive(Clone, Debug, PartialEq)]
+pub enum SumVariant {
+    Basic(String, Vec<TypeIndex>)
+    // Add stuff like tagged variants, etc.
 }
 
 const BUILTIN_TYPE_KINDS: [TypeKind; 14] = [

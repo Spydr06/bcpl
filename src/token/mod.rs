@@ -44,6 +44,7 @@ pub enum TokenKind<'a> {
     Bang, // `!`
     At, // `@`
     Compound, // `<>`
+    Range, // `..`
 
     Plus,
     Minus,
@@ -140,6 +141,7 @@ impl<'a> Display for TokenKind<'a> {
             TK::Bang => "!",
             TK::At => "@",
             TK::Compound => "<>",
+            TK::Range => "..",
 
             TK::Plus => "+",
             TK::Minus => "-",
@@ -154,8 +156,8 @@ impl<'a> Display for TokenKind<'a> {
             TK::Le => "<=",
 
             TK::Not => "~",
-            TK::LogAnd => "|",
-            TK::LogOr => "&",
+            TK::LogAnd => "&",
+            TK::LogOr => "|",
             TK::XOr => "^",
             TK::LShift => "<<",
             TK::RShift => ">>",
@@ -222,7 +224,6 @@ impl<'a> TryFrom<char> for TokenKind<'a> {
             '?' => Ok(TK::QuestionMark),
             ',' => Ok(TK::Comma),
             '@' => Ok(TK::At),
-            '.' => Ok(TK::Period),
             '|' => Ok(TK::LogOr),
             '&' => Ok(TK::LogAnd),
             '^' => Ok(TK::XOr),

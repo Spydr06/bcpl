@@ -217,7 +217,7 @@ impl<'a> Iterator for Lexer<'a> {
                     Some(Token::with_width(loc, atom.len() + 1, TokenKind::Atom(atom)))
                 }
             }
-            '(' | ')' | '{' | '}' | '[' | ']' | ';' | '+' | '*' | '=' | '!' | '?' | ',' | '@' | '.' | '|' | '&' | '^' => {
+            '(' | ')' | '{' | '}' | '[' | ']' | ';' | '+' | '*' | '=' | '!' | '?' | ',' | '@' | '|' | '&' | '^' => {
                 self.next_char();
                 Some(Token::new(loc, TokenKind::try_from(ch).expect("invalid character")))
             }
@@ -260,6 +260,16 @@ impl<'a> Iterator for Lexer<'a> {
                 }
 
                 Some(Token::new(loc, TokenKind::Colon))
+            }
+            '.' => {
+                self.next_char();
+                if let Some(&ch) = self.iter.peek() && ch == '.' {
+                    self.next_char();
+                    return Some(Token::with_width(loc, 2, TokenKind::Range))
+                }
+                else {
+                    return Some(Token::new(loc, TokenKind::Period))
+                }
             }
             '<' => {
                 self.next_char();

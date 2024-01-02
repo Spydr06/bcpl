@@ -2,11 +2,12 @@ use std::{collections::{HashMap, HashSet}, fmt::Debug, hash::Hash};
 
 use crate::source_file::{Location, Located};
 
-use self::{types::{TypeList, TypeIndex}, expr::Expr, stmt::Stmt};
+use self::{types::{TypeList, TypeIndex}, expr::Expr, stmt::Stmt, pattern::Pattern};
 
 pub(crate) mod types;
 pub(crate) mod expr;
 pub(crate) mod stmt;
+pub(crate) mod pattern;
 
 #[derive(Default, Debug)]
 pub struct Program {
@@ -168,12 +169,27 @@ impl Decl for Function {
     }
 }
 
-#[derive(Debug, Default)]
+#[derive(Debug)]
 pub enum FunctionBody {
     Expr(Expr),
     Stmt(Stmt),
-    #[default]
-    Nothing
+    PatternMatchedExpr(Vec<(Vec<Located<Pattern>>, Expr)>),
+    PatternMatchedStmt(Vec<(Vec<Located<Pattern>>, Stmt)>),
+}
+
+impl From<BasicFunctionBody> for FunctionBody {
+    fn from(value: BasicFunctionBody) -> Self {
+        match value {
+            BasicFunctionBody::Expr(expr) => Self::Expr(expr),
+            BasicFunctionBody::Stmt(stmt) => Self::Stmt(stmt)
+        }
+    }
+}
+
+#[derive(Debug)]
+pub enum BasicFunctionBody {
+    Expr(Expr),
+    Stmt(Stmt)
 }
 
 #[derive(Debug)]

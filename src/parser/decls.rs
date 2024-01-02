@@ -3,10 +3,10 @@ use std::cell::RefCell;
 use crate::{
     token::TokenKind, 
     source_file::{Location, Located, WithLocation}, 
-    ast::{Decl, Function, FunctionBody, Param, IntoDecl, Section, types::TypeKind}
+    ast::{Decl, Function, FunctionBody, Param, IntoDecl, Section, types::TypeKind, BasicFunctionBody, pattern::Pattern}
 };
 
-use super::{Parser, ParseResult, ParseError, stmt::StmtContext};
+use super::{Parser, ParseResult, ParseError, stmt::StmtContext, pattern};
 
 impl<'a> Parser<'a> {
     pub(super) fn parse_section(&mut self) -> ParseResult<'a, ()> {
@@ -66,22 +66,19 @@ impl<'a> Parser<'a> {
         
         let params = self.parse_optional_list(TokenKind::LParen, TokenKind::RParen, TokenKind::Comma, Self::parse_function_param, &())?;
 
-        let return_type = RefCell::new(None);
-        let body = if let TokenKind::Eq = self.expect(&[TokenKind::Eq, TokenKind::Be])?.kind() {
-            let expr = self.parse_expr(&StmtContext::Function(&return_type))?;
-            *return_type.borrow_mut() = Some(expr.typ().clone());
-            self.advance_if(&[TokenKind::Semicolon])?;
-            FunctionBody::Expr(expr)
+        let context = StmtContext::Function(&params);
+        let body = if self.current().kind() == &TokenKind::Colon {
+            self.parse_pattern_matched_body(&context)? 
         }
         else {
-            FunctionBody::Stmt(self.parse_stmt(&StmtContext::Function(&return_type))?)
+            self.parse_function_body(&context)?.into() 
         };
-
-        let return_type = return_type.take().unwrap_or(Some(self.get_type(TypeKind::Unit)));
+        
+        let return_type = self.get_return_type(&body);
         Ok(Function::new(decl_loc, ident, params, return_type, tailcall_recursive, body))
     }
 
-    pub(super) fn parse_function_param(&mut self, _: &()) -> ParseResult<'a, Param> {
+    fn parse_function_param(&mut self, _: &()) -> ParseResult<'a, Param> {
         let loc = self.current_token.location().clone();
         let ident = self.expect_ident()?;
         
@@ -113,6 +110,77 @@ impl<'a> Parser<'a> {
                 }
             }
             (_, value) => Ok(Param::new(loc, ident, typ, value))
+        }
+    }
+
+    fn parse_function_body(&mut self, context: &StmtContext) -> ParseResult<'a, BasicFunctionBody> {
+        Ok(if let TokenKind::Eq = self.expect(&[TokenKind::Eq, TokenKind::Be])?.kind() {
+            let expr = self.parse_expr(context)?;
+            self.advance_if(&[TokenKind::Semicolon])?;
+            BasicFunctionBody::Expr(expr)
+        }
+        else {
+            BasicFunctionBody::Stmt(self.parse_stmt(context)?)
+        })
+    }
+
+    fn check_correct_pattern_length(&self, patterns: &Vec<Located<Pattern>>, num_params: usize) -> ParseResult<'a, ()> {
+        (patterns.len() == num_params).then(|| ())
+            .ok_or_else(|| ParseError::WrongNumOfPatterns(num_params)
+                        .with_location(patterns[0].location().clone()))
+    }
+
+    fn parse_pattern_matched_stmt_body(&mut self, context: &StmtContext, first_pattern: Vec<Located<Pattern>>) -> ParseResult<'a, FunctionBody> {
+        let num_params = context.in_function().unwrap().len();
+        self.check_correct_pattern_length(&first_pattern, num_params)?;
+
+        let mut branches = vec![(first_pattern, self.parse_stmt(context)?)];
+
+        while self.advance_if(&[TokenKind::Colon])?.is_some() {
+            let pattern = self.parse_pattern_list()?;
+            self.expect(&[TokenKind::Be])?;
+            let stmt = self.parse_stmt(context)?;
+            self.check_correct_pattern_length(&pattern, num_params)?;
+            branches.push((pattern, stmt));
+        }
+
+        Ok(FunctionBody::PatternMatchedStmt(branches))
+    }
+
+    fn parse_pattern_matched_expr_body(&mut self, context: &StmtContext, first_pattern: Vec<Located<Pattern>>) -> ParseResult<'a, FunctionBody> {
+        let num_params = context.in_function().unwrap().len();
+        self.check_correct_pattern_length(&first_pattern, num_params)?;
+
+        let mut branches = vec![(first_pattern, self.parse_expr(context)?)];
+
+        while self.advance_if(&[TokenKind::Colon])?.is_some() {
+            let pattern = self.parse_pattern_list()?;
+            self.expect(&[TokenKind::Condition])?;
+            let expr = self.parse_expr(context)?;
+            self.check_correct_pattern_length(&pattern, num_params)?;
+            branches.push((pattern, expr));
+        }
+
+        Ok(FunctionBody::PatternMatchedExpr(branches))
+    }
+
+    fn parse_pattern_matched_body(&mut self, context: &StmtContext) -> ParseResult<'a, FunctionBody> {
+        self.expect(&[TokenKind::Colon])?;
+
+        let pattern = self.parse_pattern_list()?;
+        if self.expect(&[TokenKind::Condition, TokenKind::Be])?.kind() == &TokenKind::Be {
+            self.parse_pattern_matched_stmt_body(context, pattern)
+        }
+        else {
+            self.parse_pattern_matched_expr_body(context, pattern)
+        }
+    }
+
+    fn get_return_type(&self, body: &FunctionBody) -> Option<u32> {
+        match body {
+            FunctionBody::Expr(expr) => expr.typ().clone(),
+            FunctionBody::PatternMatchedExpr(bodies) => bodies.first().map(|(_, expr)| expr.typ().clone()).flatten(),
+            FunctionBody::Stmt(_) | FunctionBody::PatternMatchedStmt(_) => Some(self.get_type(TypeKind::Unit))
         }
     }
 }
