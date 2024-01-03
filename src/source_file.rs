@@ -143,7 +143,9 @@ impl<T> DerefMut for Located<T> {
 
 impl<T: Debug> Debug for Located<T> {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{{ {:?} @ <{:?}> }}", self.inner, self.loc)
+        write!(f, "{{ ")?;
+        self.inner.fmt(f)?;
+        write!(f, " }} @ <{:?}> }}", self.loc)
     }
 }
 

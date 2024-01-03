@@ -1,7 +1,7 @@
 use std::cell::RefCell;
 
 use crate::{
-    ast::{stmt::{Stmt, StmtKind}, expr::{Expr, ExprKind}, types::{TypeIndex, TypeKind}, LocalDecl, Param}, 
+    ast::{stmt::{Stmt, StmtKind}, expr::{Expr, ExprKind}, types::{TypeIndex, TypeKind}, LocalDecl, Param, pattern::Pattern}, 
     source_file::{WithLocation, Located, Location},
     token::{Token, TokenKind}
 };
@@ -15,31 +15,35 @@ pub(super) enum StmtContext<'a> {
     Function(&'a Vec<Param>),
     Loop(&'a StmtContext<'a>),
     SwitchOn(&'a RefCell<Option<Location>>, &'a Option<TypeIndex>, &'a StmtContext<'a>),
+    Match(&'a StmtContext<'a>),
     Empty
 }
 
 impl<'a> StmtContext<'a> {
+    pub(super) fn get_outer(&self) -> Option<&'a StmtContext<'a>> {
+        match self {
+            Self::ValOf(_, outer)
+                | Self::Block(outer)
+                | Self::NoBlock(outer)
+                | Self::Loop(outer)
+                | Self::SwitchOn(.., outer)
+                | Self::Match(outer) => Some(outer),
+            Self::Empty
+                | Self::Function(_) => None
+        }
+    }
+
     pub(super) fn last_valof_type(&self) -> Option<&RefCell<Option<Option<TypeIndex>>>> {
         match self {
             Self::ValOf(typ, _) => Some(typ),
-            Self::Block(outer) 
-                | Self::NoBlock(outer)
-                | Self::Loop(outer) 
-                | Self::SwitchOn(.., outer) => outer.last_valof_type(),
-            Self::Function(_) => None,
-            Self::Empty => None
+            _ => self.get_outer().map(|ctx| ctx.last_valof_type()).flatten()
         }
     }
 
     pub(super) fn in_function(&self) -> Option<&'a Vec<Param>> {
         match self {
-            Self::ValOf(_, outer) 
-                | Self::Block(outer)
-                | Self::NoBlock(outer)
-                | Self::Loop(outer) 
-                | Self::SwitchOn(.., outer) => outer.in_function(),
             Self::Function(params) => Some(params),
-            Self::Empty => None
+            _ => self.get_outer().map(|ctx| ctx.in_function()).flatten()
         }
     }
 
@@ -55,24 +59,23 @@ impl<'a> StmtContext<'a> {
     fn in_loop(&self) -> bool {
         match self {
             Self::Loop(_) => true,
-            Self::ValOf(_, outer)
-                | Self::Block(outer) 
-                | Self::NoBlock(outer)
-                | Self::SwitchOn(.., outer) => outer.in_loop(),
             Self::Empty
-                | Self::Function(_) => false
+                | Self::Function(_) => false,
+            _ => self.get_outer().map(|ctx| ctx.in_loop()).unwrap_or(false)
         }
     }
 
     fn in_switchon(&self) -> Option<(&'a RefCell<Option<Location>>, &'a Option<TypeIndex>)> {
         match self {
             Self::SwitchOn(default_case, cond_typ, _) => Some((default_case, cond_typ)),
-            Self::ValOf(_, outer)
-                | Self::Block(outer)
-                | Self::NoBlock(outer)
-                | Self::Loop(outer) => outer.in_switchon(),
-            Self::Empty
-                | Self::Function(_) => None
+            _ => self.get_outer().map(|ctx| ctx.in_switchon()).flatten()
+        }
+    }
+
+    fn in_match(&self) -> bool {
+        match self {
+            Self::Match(_) => true,
+            _ => self.get_outer().map(|ctx| ctx.in_match()).unwrap_or(false)
         }
     }
 }
@@ -92,6 +95,8 @@ impl<'a> Parser<'a> {
             TokenKind::Case => self.parse_case(context),
             TokenKind::Default => self.parse_default_case(context),
             TokenKind::EndCase => self.parse_endcase(context),
+            TokenKind::Match => self.parse_match_stmt(context, StmtKind::Match),
+            TokenKind::Every => self.parse_match_stmt(context, StmtKind::Every),
             _ => self.parse_expr_stmt(context),
         }?;
 
@@ -325,6 +330,33 @@ impl<'a> Parser<'a> {
         context.in_switchon()
             .map(|_| Stmt::new(loc.clone(), StmtKind::EndCase))
             .ok_or_else(|| ParseError::InvalidStmt("endcase".into(), "switchon".into()).with_location(loc))
+    }
+
+    fn parse_match_stmt(&mut self, context: &StmtContext, init: fn(Vec<Expr>, Vec<(Vec<Located<Pattern>>, Box<Stmt>)>) -> StmtKind) -> ParseResult<'a, Stmt> {
+        let loc = self.advance()?.location().clone();
+
+        let args = if self.current().kind() != &TokenKind::LParen {
+            vec![self.parse_expr(context)?]
+        }
+        else {
+            self.parse_optional_list(TokenKind::LParen, TokenKind::RParen, TokenKind::Comma, Self::parse_expr, context)?
+        };
+
+        let mut branches = vec![];
+        while self.advance_if(&[TokenKind::Colon])?.is_some() {
+            let patterns = self.parse_pattern_list()?;
+            if patterns.len() != args.len() {
+                return Err(ParseError::WrongNumOfPatterns(args.len()).with_location(loc))
+            }
+
+            self.expect(&[TokenKind::Be])?;
+            let stmt = self.parse_stmt(&StmtContext::Match(context))?;
+            branches.push((patterns, Box::new(stmt)))
+        }
+        
+        self.semicolon_if_required(context)?;
+
+        Ok(Stmt::new(loc, init(args, branches)))
     }
 
     fn parse_expr_stmt(&mut self, context: &StmtContext) -> ParseResult<'a, Stmt> {

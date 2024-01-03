@@ -1,6 +1,6 @@
-use crate::source_file::Location;
+use crate::source_file::{Location, Located};
 
-use super::{types::TypeIndex, stmt::Stmt};
+use super::{types::TypeIndex, stmt::Stmt, pattern::Pattern};
 
 pub type AtomIndex = u32;
 
@@ -27,6 +27,10 @@ impl Expr {
             typ: Some(typ),
             kind: ExprKind::ImplicitCast(Box::new(self))
         }
+    }
+
+    pub fn location(&self) -> &Location {
+        &self.loc
     }
 
     pub fn typ(&self) -> &Option<TypeIndex> {
@@ -66,5 +70,8 @@ pub enum ExprKind {
     Cast(Box<Expr>),
     ImplicitCast(Box<Expr>),
     ValOf(Box<Stmt>), 
-    FuncCall(Box<Expr>, Vec<Expr>)
+    FuncCall(Box<Expr>, Vec<Expr>),
+
+    Match(Vec<Expr>, Vec<(Vec<Located<Pattern>>, Box<Expr>)>),
+    Every(Vec<Expr>, Vec<(Vec<Located<Pattern>>, Box<Expr>)>),
 }

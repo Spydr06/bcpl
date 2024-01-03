@@ -1,4 +1,4 @@
-use crate::source_file::Location;
+use crate::source_file::{Location, Located};
 
 use super::{expr::Expr, LocalDecl, pattern::Pattern};
 
@@ -40,6 +40,6 @@ pub enum StmtKind {
     DefaultCase,
     EndCase,
 
-    Match(Vec<Expr>, Vec<(Vec<Pattern>, Box<Stmt>)>),
-    Every(Vec<Expr>, Vec<(Vec<Pattern>, Box<Stmt>)>),
+    Match(Vec<Expr>, Vec<(Vec<Located<Pattern>>, Box<Stmt>)>),
+    Every(Vec<Expr>, Vec<(Vec<Located<Pattern>>, Box<Stmt>)>),
 }

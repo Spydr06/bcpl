@@ -2,8 +2,8 @@ use std::cell::RefCell;
 
 use crate::{
     ast::{expr::{Expr, ExprKind},
-    types::TypeKind, stmt::StmtKind},
-    token::TokenKind, source_file::WithLocation
+    types::TypeKind, stmt::StmtKind, pattern::Pattern},
+    token::TokenKind, source_file::{WithLocation, Located}
 };
 
 use super::{Parser, ParseResult, stmt::StmtContext, ParseError};
@@ -62,6 +62,8 @@ impl<'a> Parser<'a> {
             TokenKind::StringLit(str) => self.parse_string_lit(str.to_string()),
             TokenKind::ValOf => self.parse_valof(context),
             TokenKind::LParen => self.parse_parens(context),
+            TokenKind::Match => self.parse_match_expr(context, ExprKind::Match),
+            TokenKind::Every => self.parse_match_expr(context, ExprKind::Every),
             _ => self.unexpected(&[TokenKind::Ident("expression".into())])
         }
     }
@@ -162,5 +164,45 @@ impl<'a> Parser<'a> {
             (Box::new(left), Box::new(right));
 
         Ok(Expr::new(tok.location().clone(), typ, kind))
+    }
+
+    fn parse_match_expr(&mut self, context: &StmtContext, init: fn(Vec<Expr>, Vec<(Vec<Located<Pattern>>, Box<Expr>)>) -> ExprKind) -> ParseResult<'a, Expr> {
+        let loc = self.advance()?.location().clone();
+
+        let args = if self.current().kind() != &TokenKind::LParen {
+            vec![self.parse_expr(context)?]
+        }
+        else {
+            self.parse_optional_list(TokenKind::LParen, TokenKind::RParen, TokenKind::Comma, Self::parse_expr, context)?
+        };
+
+        let mut branches = vec![];
+        let mut typ = None;
+        while self.advance_if(&[TokenKind::Colon])?.is_some() {
+            let patterns = self.parse_pattern_list()?;
+            if patterns.len() != args.len() {
+                return Err(ParseError::WrongNumOfPatterns(args.len()).with_location(loc))
+            }
+
+            self.expect(&[TokenKind::Condition])?;
+            let mut expr = self.parse_expr(&StmtContext::Match(context))?;
+            
+            if let Some(typ) = typ {
+                if let Some(_) = typ && expr.typ() != &typ {
+                    expr = expr.implicit_cast(typ.unwrap());
+                }
+            }
+            else {
+                typ = Some(expr.typ().clone());
+            }
+
+            branches.push((patterns, Box::new(expr)))
+        }
+
+        if branches.is_empty() {
+            return Err(ParseError::MissingBranch("match".into()).with_location(loc))
+        }
+
+        Ok(Expr::new(loc, typ.unwrap(), init(args, branches)))
     }
 }

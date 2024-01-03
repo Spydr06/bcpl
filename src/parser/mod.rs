@@ -154,6 +154,7 @@ pub enum ParseError<'a> {
     NoResultValue,
     RequireAfterDecl,
     ExprWithoutSideEffect,
+    MissingBranch(String),
 }
 
 impl<'a> ParseError<'a> {
@@ -213,6 +214,7 @@ impl<'a> ToString for ParseError<'a> {
             Self::NoResultValue => format!("No `resultis` statement found in `valof` body."),
             Self::ExprWithoutSideEffect => format!("Expression has no side-effect when used as a statement."),
             Self::WrongNumOfPatterns(expect) => format!("Wrong number of patterns, expected {expect}."),
+            Self::MissingBranch(expr) => format!("Expect at least one branch in `{expr}` expression.")
         }
     }
 }

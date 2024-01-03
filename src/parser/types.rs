@@ -115,7 +115,6 @@ impl<'a> Parser<'a> {
         else {
             Ok(self.get_type(TypeKind::Slice(inner)))
         }
-
     }
 
     pub(super) fn get_type(&self, typ: TypeKind) -> TypeIndex {

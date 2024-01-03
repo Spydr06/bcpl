@@ -10,12 +10,17 @@ let head(_ :: [Int32])
     : [] -> 0 // panic here
     : [a, ..] -> a
 
-let fibonacci(n :: Int32)
+and fibonacci(n :: Int32)
     : 0 | 1 -> n
     : ? -> fibonacci(n - 1) + fibonacci(n - 2)
 
 let is_ok(_ :: Atom)
     : #ok -> true
-    : ? -> false
+    : ? -> match true
+        : true -> false
 
-let main be {}
+let main be {
+    match Some(10)
+        : Some(_) be writef("some")
+        : None be writef("none");
+}
