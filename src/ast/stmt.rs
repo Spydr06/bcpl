@@ -1,6 +1,6 @@
 use crate::source_file::{Location, Located};
 
-use super::{expr::Expr, LocalDecl, pattern::Pattern};
+use super::{expr::Expr, pattern::Pattern};
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct Stmt {
@@ -35,7 +35,7 @@ pub enum StmtKind {
     Until(Box<Expr>, Box<Stmt>),
 
     //  iterator   init val   target val         stepsize           body
-    For(LocalDecl, Box<Expr>, Option<Box<Expr>>, Option<Box<Expr>>, Box<Stmt>),
+    For(Located<Pattern>, Box<Expr>, Option<Box<Expr>>, Option<Box<Expr>>, Box<Stmt>),
 
     SwitchOn(Box<Expr>, Box<Stmt>),
     Case(Box<Expr>),

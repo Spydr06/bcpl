@@ -94,7 +94,11 @@ impl Context {
         self.source_files.extend(source_files);
     }
 
-    pub fn fatal_error(self, err: &str) -> ! {
+    pub fn source_files(&self) -> &HashMap<SourceFileId, SourceFile> {
+        &self.source_files
+    }
+
+    pub fn fatal_error(&self, err: &str) -> ! {
         eprintln!("{} {} {err}",
             format!("{}:", self.program_name()).bold(),
             format!("fatal error:").bold().red()
@@ -103,62 +107,36 @@ impl Context {
         terminate();
     }
 
-    pub fn highlight_error(&self, err: Located<impl IntoCompilerError>) {
-        let file = self.source_files.get(&err.location().file_id()).expect("invalid file id");
-        let loc = err.location().clone();
-        let err: CompilerError = err.unwrap().into();        
-        println!("{} {}:{}:{}: {}", err.severity(), file.path(), loc.line(), loc.column(), err.message());
-        print!("{} {} ", format!(" {: >4}", loc.line()).bold().b_black(), "|".b_black());
-
-        let line = file.line(loc.line()).unwrap();
-        let mark_start = loc.column();
-        let mark_end = loc.column() + loc.width();
-        println!("{}{}{}", &line[..mark_start], (&line[mark_start..mark_end]).to_owned().bold().b_yellow(), &line[mark_end..]);
-
-        print!("      {} {}{}", "|".b_black(), " ".repeat(mark_start), "~".repeat(loc.width()).yellow());
-
-        if let Some(hint) = err.hint() {
-            print!(" {} {} {}", "<-".b_black(), "hint:".bold().b_grey(), hint.clone().b_grey());
-        }
-
-        println!();
-
-        for additional in err.additional {
-            self.highlight_error(additional) 
-        }
-    }
-
-
     fn print_compiling_status(&self, filepath: &String) {
         println!("{} {filepath}", "Compiling:".bold().magenta());
     }
 
-    pub fn compile(self) -> Result<(), ()> {
+    //                              Warnings            Errors
+    pub fn compile(&self) -> Result<Vec<Located<CompilerError>>, Vec<Located<CompilerError>>> {
         if self.source_files.is_empty() {
             self.fatal_error("no input files.");
         }
             
-        let mut had_errors = false;
-        for file in self.source_files.values() {
-            let mut parser = Parser::new(Lexer::from(file), self.ast.clone());
-            self.print_compiling_status((**parser).path());
-        
-            if let Err(err) = parser.parse() {
-                self.highlight_error(err);
-                had_errors = true;
-            }
+        let mut warnings = vec![];
+        let errors = self.source_files.values()
+            .map(|file| {
+                self.print_compiling_status(file.path());
+                Parser::new(Lexer::from(file), self.ast.clone())
+            })
+            .filter_map(|mut parser| {
+                let err = parser.parse();
+                warnings.extend(parser.warnings().iter().map(|warn| warn.clone().map(ParseError::into)));
+                err.err()
+            })
+            .map(|err| err.map(ParseError::into))
+            .collect::<Vec<_>>();
 
-            for warning in parser.warnings() {
-                self.highlight_error(warning.clone());
-            }
-        }
-
-        if had_errors {
-            return Err(())
+        if !errors.is_empty() {
+            return Err(errors)
         }
 
         println!("generated ast: {:#?}", self.ast);
-        Ok(())
+        Ok(warnings)
     }
 }
 

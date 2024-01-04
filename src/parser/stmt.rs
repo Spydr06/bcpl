@@ -1,9 +1,9 @@
 use std::cell::RefCell;
 
 use crate::{
-    ast::{stmt::{Stmt, StmtKind}, expr::{Expr, ExprKind}, types::{TypeIndex, TypeKind}, LocalDecl, Param, pattern::Pattern}, 
+    ast::{stmt::{Stmt, StmtKind}, expr::{Expr, ExprKind}, types::{TypeIndex, TypeKind}, Param, pattern::Pattern}, 
     source_file::{WithLocation, Located, Location},
-    token::{Token, TokenKind}
+    token::TokenKind
 };
 
 use super::{Parser, ParseResult, ParseError};
@@ -234,8 +234,7 @@ impl<'a> Parser<'a> {
     fn parse_for(&mut self, context: &StmtContext) -> ParseResult<'a, Stmt> {
         let loc = self.expect(&[TokenKind::For])?.location().clone();
 
-        let iter_loc = self.current().location().clone();
-        let iter_ident = self.expect_ident()?;
+        let iter = self.parse_pattern()?;
         self.expect(&[TokenKind::Eq])?;
         let init = self.parse_expr(context)?;
 
@@ -268,7 +267,7 @@ impl<'a> Parser<'a> {
 
         Ok(Stmt::new(
             loc,
-            StmtKind::For(LocalDecl::new(iter_loc, iter_ident, init.typ().clone()),
+            StmtKind::For(iter,
                 Box::new(init),
                 limit.map(Box::new),
                 step.map(Box::new),

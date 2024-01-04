@@ -4,6 +4,7 @@ use colorize::AnsiColor;
 
 use crate::source_file::{Located, WithLocation};
 
+#[derive(Clone)]
 pub enum Severity {
     Error,
     Warning,
@@ -20,6 +21,7 @@ impl Display for Severity {
     }
 }
 
+#[derive(Clone)]
 pub struct CompilerError {
     severity: Severity,
 

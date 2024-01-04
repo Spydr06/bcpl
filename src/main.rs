@@ -1,7 +1,12 @@
 #![feature(let_chains)]
 
-use std::collections::HashSet;
+use std::collections::{HashSet, HashMap};
 
+use colorize::AnsiColor;
+use error::IntoCompilerError;
+use source_file::Located;
+
+use crate::error::CompilerError;
 use crate::source_file::{SourceFile, SourceFileId};
 use crate::context::{Context, BuildKind, OutputFile};
 
@@ -58,8 +63,12 @@ fn main() {
         .collect()
     );
 
-    if let Err(_) = ctx.compile() {
-        terminate()
+    match ctx.compile() {
+        Ok(warns) => warns.into_iter().for_each(|warn| highlight_error(warn, ctx.source_files())),
+        Err(errors) => {
+            errors.into_iter().for_each(|err| highlight_error(err, ctx.source_files()));
+            terminate()
+        }
     }
 }
 
@@ -85,4 +94,29 @@ fn terminate() -> ! {
     println!("compilation terminated.");
     std::process::exit(1);
 }
+    
+fn highlight_error(err: Located<CompilerError>, source_files: &HashMap<SourceFileId, SourceFile>) {
+    let loc = err.location();
+    let file = source_files.get(&loc.file_id()).expect("invalid file id");
 
+    println!("{} {}:{}:{}: {}", err.severity(), file.path(), loc.line(), loc.column(), err.message());
+    print!("{} {} ", format!(" {: >4}", loc.line()).bold().b_black(), "|".b_black());
+
+    let line = file.line(loc.line()).unwrap();
+    let mark_start = loc.column();
+    let mark_end = loc.column() + loc.width();
+    println!("{}{}{}", &line[..mark_start], (&line[mark_start..mark_end]).to_owned().bold().b_yellow(), &line[mark_end..]);
+
+    print!("      {} {}{}", "|".b_black(), " ".repeat(mark_start), "~".repeat(loc.width()).yellow());
+
+    if let Some(hint) = err.hint() {
+        print!(" {} {} {}", "<-".b_black(), "hint:".bold().b_grey(), hint.clone().b_grey());
+    }
+
+    println!();
+
+    for additional in &err.additional {
+        highlight_error(additional.clone().clone(), source_files); 
+    }
+}
+ 

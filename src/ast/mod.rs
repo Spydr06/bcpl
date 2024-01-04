@@ -96,34 +96,6 @@ pub trait IntoDecl: Sized {
 }
 
 #[derive(Debug)]
-pub struct BasicDecl {
-    loc: Location,
-    is_public: bool,
-    ident: String,
-    value: Expr
-}
-
-impl IntoDecl for BasicDecl {
-    fn into_decl(self) -> Box<dyn Decl> {
-        Box::new(self)
-    }
-}
-
-impl Decl for BasicDecl {
-    fn location(&self) -> &Location {
-        &self.loc
-    }
-
-    fn ident(&self) -> &String {
-        &self.ident
-    }
-
-    fn is_public(&self) -> bool {
-        self.is_public
-    }
-}
-
-#[derive(Debug)]
 pub struct Function {
     loc: Location,
     is_public: bool,
@@ -225,20 +197,3 @@ impl Param {
     }
 }
 
-#[derive(Clone, Debug, PartialEq)]
-pub struct LocalDecl {
-    loc: Location,
-    ident: String,
-
-    typ: Option<TypeIndex>
-}
-
-impl LocalDecl {
-    pub fn new(loc: Location, ident: String, typ: Option<TypeIndex>) -> Self {
-        Self {
-            loc,
-            ident,
-            typ
-        }
-    }
-}
