@@ -98,6 +98,11 @@ impl<'a> Parser<'a> {
             TokenKind::Every => self.parse_match_stmt(context, StmtKind::Every),
             TokenKind::Next => self.parse_next_break(context, false),
             TokenKind::Break => self.parse_next_break(context, true),
+            TokenKind::Let => self.parse_let_binding(context),
+            TokenKind::Semicolon => {
+                let loc = self.advance()?.location().clone();
+                Ok(Stmt::new(loc, StmtKind::Nop))
+            }
             _ => self.parse_expr_stmt(context),
         }?;
 
@@ -381,6 +386,31 @@ impl<'a> Parser<'a> {
         }
         else {
             Ok(Stmt::new(loc, if is_break { StmtKind::Break } else { StmtKind::Next }))
+        }
+    }
+
+    fn parse_let_binding(&mut self, context: &StmtContext) -> ParseResult<'a, Stmt> {
+        let loc = self.expect(&[TokenKind::Let])?.location().clone();
+
+        let patterns = self.parse_pattern_list()?;
+        self.expect(&[TokenKind::Assign])?;
+
+        let mut exprs = vec![self.parse_expr(context)?];
+        while self.advance_if(&[TokenKind::Comma])?.is_some() {
+            exprs.push(self.parse_expr(context)?);
+        }
+
+        self.semicolon_if_required(context)?;
+
+        if exprs.len() != patterns.len() {
+            Err(ParseError::WrongNumOfPatterns(patterns.len()).with_location(loc))
+        }
+        else {
+            Ok(Stmt::new(loc, StmtKind::Binding(
+                        patterns.into_iter()
+                                .zip(exprs.into_iter())
+                                .collect()
+            )))
         }
     }
 }

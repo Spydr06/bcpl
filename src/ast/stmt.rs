@@ -20,6 +20,8 @@ impl Stmt {
 
 #[derive(Clone, Debug, PartialEq)]
 pub enum StmtKind {
+    Nop,
+
     Expr(Box<Expr>),
     Block(Vec<Stmt>),
 
@@ -44,4 +46,6 @@ pub enum StmtKind {
 
     Match(Vec<Expr>, Vec<(Vec<Located<Pattern>>, Box<Stmt>)>),
     Every(Vec<Expr>, Vec<(Vec<Located<Pattern>>, Box<Stmt>)>),
+
+    Binding(Vec<(Located<Pattern>, Expr)>)
 }

@@ -20,7 +20,8 @@ let is_ok(_ :: Atom)
         : true => false
 
 let main be {
+    let foo, bar := 69, 420;
     match Some(10)
         : Some(?) be writef("some")
-        : None be writef("none") -> #wow :: Int32, #no;
+        : None be writef("none") -> #wow :: Int32, #no[0];
 }

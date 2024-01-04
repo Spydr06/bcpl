@@ -88,6 +88,8 @@ pub enum ExprKind {
 
     Ref(Box<Expr>),
     Deref(Box<Expr>),
+    Index(Box<Expr>, Box<Expr>),
+    Slice(Box<Expr>, Box<Expr>, Box<Expr>),
 
     Cast(Box<Expr>),
     ImplicitCast(Box<Expr>),

@@ -27,7 +27,7 @@ impl<'a> TryFrom<&TokenKind<'a>> for OperatorPrecedence {
 
     fn try_from(value: &TokenKind<'a>) -> Result<Self, Self::Error> {
         match value {
-            TokenKind::LParen => Ok(Self::Call),
+            TokenKind::LParen | TokenKind::LBracket => Ok(Self::Call),
             TokenKind::Plus | TokenKind::Minus => Ok(Self::Sum),
             TokenKind::Star | TokenKind::Slash | TokenKind::Mod => Ok(Self::Product),
             TokenKind::Eq | TokenKind::Ne
@@ -79,6 +79,7 @@ impl<'a> Parser<'a> {
             TokenKind::XOr => self.parse_binop(context, left, ExprKind::XOr, OperatorPrecedence::Or),
             TokenKind::Condition => self.parse_conditional(context, left),
             TokenKind::Of => self.parse_explicit_cast(left),
+            TokenKind::LBracket => self.parse_index_expr(context, left),
             _ => self.unexpected(&[TokenKind::Ident("operator".into())])
         }
     }
@@ -236,6 +237,22 @@ impl<'a> Parser<'a> {
         let expr = self.parse_expr(context)?;
         
         Ok(Expr::new(loc, None, ExprKind::Deref(Box::new(expr))))
+    }
+
+    fn parse_index_expr(&mut self, context: &StmtContext, left: Expr) -> ParseResult<'a, Expr> {
+        let loc = self.expect(&[TokenKind::LBracket])?.location().clone();
+        let index = self.parse_expr(context)?;
+            
+        if self.advance_if(&[TokenKind::Range])?.is_some() {
+            let slice_end = self.parse_expr(context)?;
+
+            self.expect(&[TokenKind::RBracket])?;
+            Ok(Expr::new(loc, None, ExprKind::Slice(Box::new(left), Box::new(index), Box::new(slice_end))))
+        }
+        else {
+            self.expect(&[TokenKind::RBracket])?;
+            Ok(Expr::new(loc, None, ExprKind::Index(Box::new(left), Box::new(index))))
+        }
     }
 
     fn parse_match_expr(&mut self, context: &StmtContext, init: fn(Vec<Expr>, Vec<(Vec<Located<Pattern>>, Box<Expr>)>) -> ExprKind) -> ParseResult<'a, Expr> {
