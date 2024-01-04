@@ -155,7 +155,7 @@ impl<'a> Parser<'a> {
 
         while self.advance_if(&[TokenKind::Colon])?.is_some() {
             let pattern = self.parse_pattern_list()?;
-            self.expect(&[TokenKind::Condition])?;
+            self.expect(&[TokenKind::Arrow])?;
             let expr = self.parse_expr(context)?;
             self.check_correct_pattern_length(&pattern, num_params)?;
             branches.push((pattern, expr));
@@ -168,7 +168,7 @@ impl<'a> Parser<'a> {
         self.expect(&[TokenKind::Colon])?;
 
         let pattern = self.parse_pattern_list()?;
-        if self.expect(&[TokenKind::Condition, TokenKind::Be])?.kind() == &TokenKind::Be {
+        if self.expect(&[TokenKind::Arrow, TokenKind::Be])?.kind() == &TokenKind::Be {
             self.parse_pattern_matched_stmt_body(context, pattern)
         }
         else {

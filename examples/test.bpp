@@ -3,24 +3,24 @@ section Main
 type OptionI32 = Some(Int32) : None
 
 let unwrap(_ :: &OptionI32)
-    : Some(i) -> i
-    : None -> 0
+    : Some(i) => i
+    : None => 0
 
 let head(_ :: [Int32])
-    : [] -> 0 // panic here
-    : [a, ..] -> a
+    : [] => 0 // panic here
+    : [a, ..] => a
 
 and fibonacci(n :: Int32)
-    : 0 | 1 -> n
-    : ? -> fibonacci(n - 1) + fibonacci(n - 2)
+    : 0 | 1 => n
+    : ? => fibonacci(n - 1) + fibonacci(n - 2)
 
 let is_ok(_ :: Atom)
-    : #ok -> true
-    : ? -> match true
-        : true -> false
+    : #ok => true
+    : ? => match true
+        : true => false
 
 let main be {
     match Some(10)
-        : Some(_) be writef("some")
-        : None be writef("none");
+        : Some(?) be writef("some")
+        : None be writef("none") -> #wow :: Int32, #no;
 }

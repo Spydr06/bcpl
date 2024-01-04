@@ -94,9 +94,10 @@ impl<'a> Parser<'a> {
             TokenKind::SwitchOn => self.parse_switchon(context),
             TokenKind::Case => self.parse_case(context),
             TokenKind::Default => self.parse_default_case(context),
-            TokenKind::EndCase => self.parse_endcase(context),
             TokenKind::Match => self.parse_match_stmt(context, StmtKind::Match),
             TokenKind::Every => self.parse_match_stmt(context, StmtKind::Every),
+            TokenKind::Next => self.parse_next_break(context, false),
+            TokenKind::Break => self.parse_next_break(context, true),
             _ => self.parse_expr_stmt(context),
         }?;
 
@@ -323,15 +324,6 @@ impl<'a> Parser<'a> {
         }
     }
 
-    fn parse_endcase(&mut self, context: &StmtContext) -> ParseResult<'a, Stmt> {
-        let loc = self.expect(&[TokenKind::EndCase])?.location().clone();
-        self.semicolon_if_required(context)?;
-
-        context.in_switchon()
-            .map(|_| Stmt::new(loc.clone(), StmtKind::EndCase))
-            .ok_or_else(|| ParseError::InvalidStmt("endcase".into(), "switchon".into()).with_location(loc))
-    }
-
     fn parse_match_stmt(&mut self, context: &StmtContext, init: fn(Vec<Expr>, Vec<(Vec<Located<Pattern>>, Box<Stmt>)>) -> StmtKind) -> ParseResult<'a, Stmt> {
         let loc = self.advance()?.location().clone();
 
@@ -376,5 +368,19 @@ impl<'a> Parser<'a> {
             self.expect(&[TokenKind::Semicolon])?;
         }
         Ok(())
+    }
+
+    fn parse_next_break(&mut self, context: &StmtContext, is_break: bool) -> ParseResult<'a, Stmt> {
+        let loc = self.advance()?.location().clone();
+        self.semicolon_if_required(context)?;
+        if !context.in_loop() || !context.in_match() || context.in_switchon().is_none() {
+            Err(
+                ParseError::InvalidStmt(if is_break { "break" } else { "next" }.into(), "loop, `match`, `every` or `switchon`".into())
+                    .with_location(loc)
+            )
+        }
+        else {
+            Ok(Stmt::new(loc, if is_break { StmtKind::Break } else { StmtKind::Next }))
+        }
     }
 }

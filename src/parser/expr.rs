@@ -10,9 +10,15 @@ use super::{Parser, ParseResult, stmt::StmtContext, ParseError};
 
 #[derive(PartialEq, PartialOrd)]
 enum OperatorPrecedence {
-    Product = 3,
-    Sum = 2,
-    Call = 1,
+    Call = 9,
+    Cast = 8,
+    Product = 7,
+    Sum = 6,
+    BitShift = 5,
+    Comparison = 4,
+    And = 3,
+    Or = 2,
+    Conditional = 1,
     Lowest = 0 
 }
 
@@ -24,6 +30,14 @@ impl<'a> TryFrom<&TokenKind<'a>> for OperatorPrecedence {
             TokenKind::LParen => Ok(Self::Call),
             TokenKind::Plus | TokenKind::Minus => Ok(Self::Sum),
             TokenKind::Star | TokenKind::Slash | TokenKind::Mod => Ok(Self::Product),
+            TokenKind::Eq | TokenKind::Ne
+                | TokenKind::Gt | TokenKind::Ge
+                | TokenKind::Lt | TokenKind::Le => Ok(Self::Comparison),
+            TokenKind::LShift | TokenKind::RShift => Ok(Self::BitShift),
+            TokenKind::LogOr => Ok(Self::Or),
+            TokenKind::LogAnd => Ok(Self::And),
+            TokenKind::Condition => Ok(Self::Conditional),
+            TokenKind::Of => Ok(Self::Cast),
             _ => Err(())
         }
     }
@@ -47,8 +61,24 @@ impl<'a> Parser<'a> {
     fn parse_infix_expr(&mut self, context: &StmtContext, left: Expr) -> ParseResult<'a, Expr> {
         match self.current().kind() {
             TokenKind::LParen => self.parse_function_call(context, left),
-            TokenKind::Plus | TokenKind::Minus => self.parse_sum(context, left),
-            TokenKind::Star | TokenKind::Slash => self.parse_product(context, left),
+            TokenKind::Plus => self.parse_binop(context, left, ExprKind::Add, OperatorPrecedence::Sum),
+            TokenKind::Minus => self.parse_binop(context, left, ExprKind::Sub, OperatorPrecedence::Sum),
+            TokenKind::Star => self.parse_binop(context, left, ExprKind::Mul, OperatorPrecedence::Product),
+            TokenKind::Slash => self.parse_binop(context, left, ExprKind::Div, OperatorPrecedence::Product),
+            TokenKind::Mod => self.parse_binop(context, left, ExprKind::Mod, OperatorPrecedence::Product),
+            TokenKind::Eq => self.parse_comparison_op(context, left, ExprKind::Eq),
+            TokenKind::Ne => self.parse_comparison_op(context, left, ExprKind::Ne), 
+            TokenKind::Gt => self.parse_comparison_op(context, left, ExprKind::Gt),
+            TokenKind::Ge => self.parse_comparison_op(context, left, ExprKind::Ge),
+            TokenKind::Lt => self.parse_comparison_op(context, left, ExprKind::Lt),
+            TokenKind::Le => self.parse_comparison_op(context, left, ExprKind::Le),
+            TokenKind::LShift => self.parse_binop(context, left, ExprKind::LShift, OperatorPrecedence::BitShift),
+            TokenKind::RShift => self.parse_binop(context, left, ExprKind::RShift, OperatorPrecedence::BitShift),
+            TokenKind::LogOr => self.parse_binop(context, left, ExprKind::Or, OperatorPrecedence::Or),
+            TokenKind::LogAnd => self.parse_binop(context, left, ExprKind::And, OperatorPrecedence::And),
+            TokenKind::XOr => self.parse_binop(context, left, ExprKind::XOr, OperatorPrecedence::Or),
+            TokenKind::Condition => self.parse_conditional(context, left),
+            TokenKind::Of => self.parse_explicit_cast(left),
             _ => self.unexpected(&[TokenKind::Ident("operator".into())])
         }
     }
@@ -64,6 +94,10 @@ impl<'a> Parser<'a> {
             TokenKind::LParen => self.parse_parens(context),
             TokenKind::Match => self.parse_match_expr(context, ExprKind::Match),
             TokenKind::Every => self.parse_match_expr(context, ExprKind::Every),
+            TokenKind::Abs => self.parse_prefix_op(context, ExprKind::Abs),
+            TokenKind::Not => self.parse_prefix_op(context, ExprKind::Not),
+            TokenKind::LogAnd => self.parse_ref(context),
+            TokenKind::At => self.parse_deref(context),
             _ => self.unexpected(&[TokenKind::Ident("expression".into())])
         }
     }
@@ -136,34 +170,72 @@ impl<'a> Parser<'a> {
         Ok(Expr::new(loc, None, ExprKind::FuncCall(Box::new(callee), args)))
     }
 
-    fn parse_sum(&mut self, context: &StmtContext, left: Expr) -> ParseResult<'a, Expr> {
+    fn parse_binop(&mut self, context: &StmtContext, left: Expr, op_init: fn(Box<Expr>, Box<Expr>) -> ExprKind, precedence: OperatorPrecedence) -> ParseResult<'a, Expr> {
         let tok = self.advance()?;
-        let mut right = self.parse_expr_with_precedence(context, OperatorPrecedence::Sum)?;
-        
+        let mut right = self.parse_expr_with_precedence(context, precedence)?;
+
         let typ = left.typ().clone();
         if let Some(typ) = &typ && &Some(*typ) != right.typ() {
             right = right.implicit_cast(*typ);
         }
 
-        let kind = if tok.kind() == &TokenKind::Plus { ExprKind::Add } else { ExprKind::Sub }
-            (Box::new(left), Box::new(right));
-
-        Ok(Expr::new(tok.location().clone(), typ, kind))
+        Ok(Expr::new(tok.location().clone(), typ, op_init(Box::new(left), Box::new(right))))
     }
 
-    fn parse_product(&mut self, context: &StmtContext, left: Expr) -> ParseResult<'a, Expr> {
-        let tok = self.advance()?;
-        let mut right = self.parse_expr_with_precedence(context, OperatorPrecedence::Product)?;
+    fn parse_comparison_op(&mut self, context: &StmtContext, left: Expr, op_init: fn(Box<Expr>, Box<Expr>) -> ExprKind) -> ParseResult<'a, Expr> {
+        let mut binop = self.parse_binop(context, left, op_init, OperatorPrecedence::Comparison)?;
+        binop.set_typ(self.get_type(TypeKind::Bool));
+        Ok(binop)
+    }
 
-        let typ = left.typ().clone();
-        if let Some(typ) = &typ && &Some(*typ) != right.typ() {
-            right = right.implicit_cast(*typ);
+    fn parse_prefix_op(&mut self, context: &StmtContext, op_init: fn(Box<Expr>) -> ExprKind) -> ParseResult<'a, Expr> {
+        let loc = self.advance()?.location().clone();
+        
+        let expr = self.parse_expr(context)?;
+
+        Ok(Expr::new(loc, expr.typ().clone(), op_init(Box::new(expr))))
+    }
+
+    fn parse_conditional(&mut self, context: &StmtContext, mut condition: Expr) -> ParseResult<'a, Expr> {
+        let loc = self.expect(&[TokenKind::Condition])?.location().clone();
+
+        let bool_typ = self.get_type(TypeKind::Bool);
+        if condition.typ() != &Some(bool_typ) {
+            condition = condition.implicit_cast(bool_typ);
         }
 
-        let kind = if tok.kind() == &TokenKind::Star { ExprKind::Mul } else { ExprKind::Div }
-            (Box::new(left), Box::new(right));
+        let if_branch = self.parse_expr(context)?;
+        self.expect(&[TokenKind::Comma])?;
+        let mut else_branch = self.parse_expr_with_precedence(context, OperatorPrecedence::Conditional)?;
 
-        Ok(Expr::new(tok.location().clone(), typ, kind))
+        let typ = if_branch.typ().clone();
+        if typ.is_some() && else_branch.typ() != &typ {
+            else_branch = else_branch.implicit_cast(typ.unwrap());
+        }
+
+        Ok(Expr::new(loc, typ, ExprKind::Conditional(Box::new(condition), Box::new(if_branch), Box::new(else_branch))))
+    }
+
+    fn parse_explicit_cast(&mut self, expr: Expr) -> ParseResult<'a, Expr> {
+        let loc = self.expect(&[TokenKind::Of])?.location().clone();
+        let typ = self.parse_type()?;
+
+        Ok(Expr::new(loc, Some(typ), ExprKind::Cast(Box::new(expr))))
+    }
+
+    fn parse_ref(&mut self, context: &StmtContext) -> ParseResult<'a, Expr> {
+        let loc = self.expect(&[TokenKind::LogAnd])?.location().clone();
+        let expr = self.parse_expr(context)?;
+        let typ = expr.typ().map(|typ| self.pointer_to(typ));
+
+        Ok(Expr::new(loc, typ, ExprKind::Ref(Box::new(expr))))
+    }
+
+    fn parse_deref(&mut self, context: &StmtContext) -> ParseResult<'a, Expr> {
+        let loc = self.expect(&[TokenKind::At])?.location().clone();
+        let expr = self.parse_expr(context)?;
+        
+        Ok(Expr::new(loc, None, ExprKind::Deref(Box::new(expr))))
     }
 
     fn parse_match_expr(&mut self, context: &StmtContext, init: fn(Vec<Expr>, Vec<(Vec<Located<Pattern>>, Box<Expr>)>) -> ExprKind) -> ParseResult<'a, Expr> {
@@ -184,7 +256,7 @@ impl<'a> Parser<'a> {
                 return Err(ParseError::WrongNumOfPatterns(args.len()).with_location(loc))
             }
 
-            self.expect(&[TokenKind::Condition])?;
+            self.expect(&[TokenKind::Arrow])?;
             let mut expr = self.parse_expr(&StmtContext::Match(context))?;
             
             if let Some(typ) = typ {

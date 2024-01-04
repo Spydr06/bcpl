@@ -38,7 +38,9 @@ pub enum StmtKind {
     SwitchOn(Box<Expr>, Box<Stmt>),
     Case(Box<Expr>),
     DefaultCase,
-    EndCase,
+    
+    Break,
+    Next,
 
     Match(Vec<Expr>, Vec<(Vec<Located<Pattern>>, Box<Stmt>)>),
     Every(Vec<Expr>, Vec<(Vec<Located<Pattern>>, Box<Stmt>)>),

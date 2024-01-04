@@ -37,6 +37,10 @@ impl Expr {
         &self.typ
     }
 
+    pub fn set_typ(&mut self, typ: TypeIndex) {
+        self.typ = Some(typ)
+    }
+
     pub fn has_sideeffect(&self) -> bool {
         match &self.kind {
             ExprKind::Cast(expr) | ExprKind::ImplicitCast(expr) => expr.has_sideeffect(),
@@ -67,10 +71,30 @@ pub enum ExprKind {
     Mod(Box<Expr>, Box<Expr>),
     Abs(Box<Expr>),
 
+    Not(Box<Expr>),
+    And(Box<Expr>, Box<Expr>),
+    Or(Box<Expr>, Box<Expr>),
+    XOr(Box<Expr>, Box<Expr>),
+
+    Eq(Box<Expr>, Box<Expr>),
+    Ne(Box<Expr>, Box<Expr>),
+    Gt(Box<Expr>, Box<Expr>),
+    Ge(Box<Expr>, Box<Expr>),
+    Lt(Box<Expr>, Box<Expr>),
+    Le(Box<Expr>, Box<Expr>),
+
+    LShift(Box<Expr>, Box<Expr>),
+    RShift(Box<Expr>, Box<Expr>),
+
+    Ref(Box<Expr>),
+    Deref(Box<Expr>),
+
     Cast(Box<Expr>),
     ImplicitCast(Box<Expr>),
     ValOf(Box<Stmt>), 
     FuncCall(Box<Expr>, Vec<Expr>),
+
+    Conditional(Box<Expr>, Box<Expr>, Box<Expr>),
 
     Match(Vec<Expr>, Vec<(Vec<Located<Pattern>>, Box<Expr>)>),
     Every(Vec<Expr>, Vec<(Vec<Located<Pattern>>, Box<Expr>)>),

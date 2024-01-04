@@ -40,6 +40,7 @@ pub enum TokenKind<'a> {
     Colon, // `:`
     Assign, // `:=`
     Condition, // `->`
+    Arrow, // `=>`
     QuestionMark, // `?`
     Bang, // `!`
     At, // `@`
@@ -73,9 +74,8 @@ pub enum TokenKind<'a> {
     ValOf,
     ResultIs,
     Return,
-    Skip,
-    Repeat,
     Break,
+    Next,
     If,
     Else,
     Unless,
@@ -87,7 +87,6 @@ pub enum TokenKind<'a> {
     Every,
     Case,
     Default,
-    EndCase,
     Into,
     Do,
     To,
@@ -137,6 +136,7 @@ impl<'a> Display for TokenKind<'a> {
             TK::Colon => ":",
             TK::Assign => ":=",
             TK::Condition => "->",
+            TK::Arrow => "=>",
             TK::QuestionMark => "?",
             TK::Bang => "!",
             TK::At => "@",
@@ -169,8 +169,7 @@ impl<'a> Display for TokenKind<'a> {
             TK::ValOf => "valof",
             TK::ResultIs => "resultis",
             TK::Return => "return",
-            TK::Skip => "skip",
-            TK::Repeat => "repeat",
+            TK::Next => "next",
             TK::Break => "break",
             TK::If => "if",
             TK::Else => "else",
@@ -180,7 +179,6 @@ impl<'a> Display for TokenKind<'a> {
             TK::Until => "until",
             TK::SwitchOn => "switchon",
             TK::Match => "match",
-            TK::EndCase => "endcase",
             TK::Every => "every",
             TK::Case => "case",
             TK::Default => "default",
@@ -219,7 +217,6 @@ impl<'a> TryFrom<char> for TokenKind<'a> {
             ';' => Ok(TK::Semicolon),
             '+' => Ok(TK::Plus),
             '*' => Ok(TK::Star),
-            '=' => Ok(TK::Eq),
             '!' => Ok(TK::Bang),
             '?' => Ok(TK::QuestionMark),
             ',' => Ok(TK::Comma),
@@ -243,8 +240,7 @@ impl<'a> From<&'a str> for TokenKind<'a> {
             "valof" => TK::ValOf,
             "resultis" => TK::ResultIs,
             "return" => TK::Return,
-            "skip" => TK::Skip,
-            "repeat" => TK::Repeat,
+            "next" => TK::Next,
             "break" => TK::Break,
             "if" => TK::If,
             "else" => TK::Else,
@@ -256,7 +252,6 @@ impl<'a> From<&'a str> for TokenKind<'a> {
             "while" => TK::While,
             "case" => TK::Case,
             "default" => TK::Default,
-            "endcase" => TK::EndCase,
             "into" => TK::Into,
             "do" => TK::Do,
             "to" => TK::To,
