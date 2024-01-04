@@ -80,7 +80,7 @@ impl<'a> Parser<'a> {
 
     fn parse_function_param(&mut self, _: &()) -> ParseResult<'a, Param> {
         let loc = self.current_token.location().clone();
-        let ident = self.expect_ident()?;
+        let ident = self.parse_pattern()?;
         
         let typ = if self.advance_if(&[TokenKind::Of])?.is_some() {
             Some(self.parse_type()?)

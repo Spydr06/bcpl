@@ -209,13 +209,13 @@ pub enum BasicFunctionBody {
 #[derive(Debug)]
 pub struct Param {
     loc: Location,
-    ident: String,
+    ident: Located<Pattern>,
     typ: Option<TypeIndex>,
     default_value: Option<Expr>
 }
 
 impl Param {
-    pub fn new(loc: Location, ident: String, typ: Option<TypeIndex>, default_value: Option<Expr>) -> Self {
+    pub fn new(loc: Location, ident: Located<Pattern>, typ: Option<TypeIndex>, default_value: Option<Expr>) -> Self {
         Self {
             loc,
             ident,

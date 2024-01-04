@@ -45,6 +45,7 @@ impl Expr {
         match &self.kind {
             ExprKind::Cast(expr) | ExprKind::ImplicitCast(expr) => expr.has_sideeffect(),
             ExprKind::ValOf(_) | ExprKind::FuncCall(..) => true,
+            ExprKind::Conditional(a, b, c) => a.has_sideeffect() || b.has_sideeffect() || c.has_sideeffect(),
             _ => false
         }
     }

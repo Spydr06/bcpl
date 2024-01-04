@@ -25,3 +25,4 @@ let main be {
         : Some(?) be writef("some")
         : None be writef("none") -> #wow :: Int32, #no[0];
 }
+
