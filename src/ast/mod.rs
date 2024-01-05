@@ -8,6 +8,7 @@ pub(crate) mod types;
 pub(crate) mod expr;
 pub(crate) mod stmt;
 pub(crate) mod pattern;
+pub(crate) mod visitor;
 
 #[derive(Default, Debug)]
 pub struct Program {

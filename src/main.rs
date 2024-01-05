@@ -3,12 +3,13 @@
 use std::collections::{HashSet, HashMap};
 
 use colorize::AnsiColor;
-use error::IntoCompilerError;
 use source_file::Located;
 
-use crate::error::CompilerError;
-use crate::source_file::{SourceFile, SourceFileId};
-use crate::context::{Context, BuildKind, OutputFile};
+use crate:: {
+    error::CompilerError,
+    source_file::{SourceFile, SourceFileId},
+    context::{Context, BuildKind, OutputFile},
+};
 
 mod context;
 mod source_file;
@@ -16,6 +17,7 @@ mod token;
 mod ast;
 mod parser;
 mod error;
+mod typechecker;
 
 trait ExpectArg<T> {
     fn expect_arg(self, program_name: &str, arg: &str) -> T;
@@ -63,9 +65,11 @@ fn main() {
         .collect()
     );
 
+    use context::CompileResult as C;
     match ctx.compile() {
-        Ok(warns) => warns.into_iter().for_each(|warn| highlight_error(warn, ctx.source_files())),
-        Err(errors) => {
+        C::Ok => (),
+        C::Warn(warns) => warns.into_iter().for_each(|warn| highlight_error(warn, ctx.source_files())),
+        C::Err(errors) => {
             errors.into_iter().for_each(|err| highlight_error(err, ctx.source_files()));
             terminate()
         }

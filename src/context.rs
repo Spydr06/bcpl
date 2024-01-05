@@ -2,7 +2,14 @@ use std::{collections::HashMap, sync::{Arc, Mutex}};
 
 use colorize::AnsiColor;
 
-use crate::{terminate, source_file::{SourceFile, SourceFileId, Located}, token::lexer::Lexer, ast, parser::{Parser, ParseError}, error::{CompilerError, IntoCompilerError}};
+use crate::{
+    terminate,
+    source_file::{SourceFile, SourceFileId, Located},
+    token::lexer::Lexer,
+    ast,
+    parser::{Parser, ParseError},
+    error::CompilerError
+};
 
 #[derive(Default)]
 pub enum BuildKind {
@@ -112,7 +119,7 @@ impl Context {
     }
 
     //                              Warnings            Errors
-    pub fn compile(&self) -> Result<Vec<Located<CompilerError>>, Vec<Located<CompilerError>>> {
+    pub fn compile(&self) -> CompileResult {
         if self.source_files.is_empty() {
             self.fatal_error("no input files.");
         }
@@ -132,11 +139,21 @@ impl Context {
             .collect::<Vec<_>>();
 
         if !errors.is_empty() {
-            return Err(errors)
+            return CompileResult::Err(errors)
         }
 
         println!("generated ast: {:#?}", self.ast);
-        Ok(warnings)
+        if !warnings.is_empty() {
+            CompileResult::Warn(warnings)
+        }
+        else {
+            CompileResult::Ok
+        }
     }
 }
 
+pub enum CompileResult {
+    Ok,
+    Warn(Vec<Located<CompilerError>>),
+    Err(Vec<Located<CompilerError>>)
+}

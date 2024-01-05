@@ -4,10 +4,6 @@ use std::{
     fmt::{Formatter, Debug}, hash::Hash
 };
 
-use colorize::AnsiColor;
-
-use crate::error::{IntoCompilerError, CompilerError};
-
 pub type SourceFileId = u32;
 
 #[derive(Debug)]
@@ -171,3 +167,4 @@ pub trait WithLocation: Sized {
 impl WithLocation for String {}
 impl WithLocation for u32 {}
 impl<T: WithLocation> WithLocation for Option<T> {}
+
