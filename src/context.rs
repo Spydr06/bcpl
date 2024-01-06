@@ -8,7 +8,7 @@ use crate::{
     token::lexer::Lexer,
     ast,
     parser::{Parser, ParseError},
-    error::CompilerError
+    error::CompilerError, typechecker::typecheck_ast
 };
 
 #[derive(Default)]
@@ -142,7 +142,11 @@ impl Context {
             return CompileResult::Err(errors)
         }
 
-        println!("generated ast: {:#?}", self.ast);
+        if let Err(err) = typecheck_ast(self.ast.clone()) {
+            println!("typechecker error...");
+        }
+
+//        println!("generated ast: {:#?}", self.ast);
         if !warnings.is_empty() {
             CompileResult::Warn(warnings)
         }

@@ -16,6 +16,10 @@ impl Stmt {
             kind
         }
     }
+
+    pub fn kind_mut(&mut self) -> &mut StmtKind {
+        &mut self.kind
+    }
 }
 
 #[derive(Clone, Debug, PartialEq)]

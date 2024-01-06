@@ -1,4 +1,6 @@
 #![feature(let_chains)]
+#![feature(impl_trait_in_assoc_type)]
+#![feature(trait_alias)]
 
 use std::collections::{HashSet, HashMap};
 

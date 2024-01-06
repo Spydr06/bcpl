@@ -1,8 +1,8 @@
-use std::{collections::{HashMap, HashSet}, fmt::Debug, hash::Hash};
+use std::{collections::{HashMap, HashSet}, fmt::Debug, any::Any};
 
 use crate::source_file::{Location, Located};
 
-use self::{types::{TypeList, TypeIndex}, expr::{Expr, AtomIndex}, stmt::Stmt, pattern::Pattern};
+use self::{types::{TypeList, TypeIndex}, expr::{Expr, AtomIndex}, stmt::Stmt, pattern::Pattern, visitor::Traversable};
 
 pub(crate) mod types;
 pub(crate) mod expr;
@@ -90,10 +90,86 @@ pub trait Decl: Debug {
     fn location(&self) -> &Location;
     fn ident(&self) -> &String;
     fn is_public(&self) -> bool;
+
+    fn as_any(&self) -> &dyn Any;
+    fn as_mut_any(&mut self) -> &mut dyn Any;
 }
 
 pub trait IntoDecl: Sized {
     fn into_decl(self) -> Box<dyn Decl>;
+}
+
+#[macro_export]
+macro_rules! match_decl {
+    // immutable
+    ($decl: ident,) => {
+        {}
+    };
+    ($decl: ident, , _ => $else_body: expr) => {
+        { $else_body }
+    };
+    ($decl: ident, $id: ident as $typ: ty => $body: expr $(, $_id: ident as $_typ: ty => $_body: expr)* $(, _ => $else_body: expr)?) => {
+        if let Some($id) = $decl.downcast_ref::<$typ>() {
+            $body
+        } else {
+            match_decl!($decl, $($_id as $_typ => $_body),* $(, _ => $else_body)?)
+        }
+    };
+    ($decl: expr; $($id: ident as $typ: ty => $body: expr),* $(, _ => $else_body: expr)?) => {
+        let any_decl = ($decl).as_any();
+        match_decl!(any_decl, $($id as $typ => $body),* $(, _ => $else_body)?);
+    };
+    
+    // mutable
+    (mut $decl: ident,) => {
+        {}
+    };
+    (mut $decl: ident, , _ => $else_body: expr) => {
+        { $else_body }
+    };
+    (mut $decl: ident, $id: ident as $typ: ty => $body: expr $(, $_id: ident as $_typ: ty => $_body: expr)* $(, _ => $else_body: expr)?) => {
+        if let Some($id) = $decl.downcast_mut::<$typ>() {
+            $body
+        } else {
+            match_decl!(mut $decl, $($_id as $_typ => $_body),* $(, _ => $else_body)?)
+        }
+    };
+    (mut $decl: expr; $($id: ident as $typ: ty => $body: expr),* $(, _ => $else_body: expr)?) => {
+        let any_decl = ($decl).as_mut_any();
+        match_decl!(mut any_decl, $($id as $typ => $body),* $(, _ => $else_body)?);
+    };
+}
+
+#[derive(Debug)]
+pub struct ManifestDecl {
+    loc: Location,
+    is_public: bool,
+
+    ident: String,
+
+    value: Expr
+}
+
+impl Decl for ManifestDecl {
+    fn ident(&self) -> &String {
+        &self.ident
+    }
+
+    fn location(&self) -> &Location {
+        &self.loc
+    }
+
+    fn is_public(&self) -> bool {
+        self.is_public
+    }
+
+    fn as_any(&self) -> &dyn Any {
+        self
+    }
+
+    fn as_mut_any(&mut self) -> &mut dyn Any {
+        self
+    }
 }
 
 #[derive(Debug)]
@@ -153,6 +229,14 @@ impl Decl for Function {
 
     fn is_public(&self) -> bool {
         self.is_public
+    }
+
+    fn as_any(&self) -> &dyn Any {
+        self
+    }
+
+    fn as_mut_any(&mut self) -> &mut dyn Any {
+        self
     }
 }
 

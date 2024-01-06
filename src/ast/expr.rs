@@ -49,6 +49,10 @@ impl Expr {
             _ => false
         }
     }
+
+    pub fn kind_mut(&mut self) -> &mut ExprKind {
+        &mut self.kind
+    }
 }
 
 #[derive(Clone, Debug, PartialEq)]
