@@ -45,6 +45,10 @@ impl Type {
     pub fn set_kind(&mut self, kind: TypeKind) {
         self.kind = kind;
     }
+
+    pub fn kind(&self) -> &TypeKind {
+        &self.kind
+    }
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -176,6 +180,10 @@ impl TypeList {
 
     pub fn get_mut(&mut self, index: TypeIndex) -> Option<&mut Type> {
         self.types.get_mut(index as usize)
+    }
+
+    pub fn iter(&self) -> impl Iterator<Item=&Type> {
+        self.types.iter()
     }
 }
 
